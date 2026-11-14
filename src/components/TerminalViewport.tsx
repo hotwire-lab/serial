@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { CanvasAddon } from '@xterm/addon-canvas';
@@ -45,10 +45,6 @@ export const TerminalViewport = React.forwardRef<TerminalViewportHandle, Termina
     const onResetUnseenChunksRef = useRef(onResetUnseenChunks);
 
     const pinchStateRef = useRef<{ initialDist: number; startFontSize: number } | null>(null);
-    const [dimensions, setDimensions] = useState<{ cols: number; rows: number }>({
-      cols: 80,
-      rows: 24,
-    });
 
     lockedRef.current = isAutoScrollLocked;
     onFontSizeChangeRef.current = onFontSizeChange;
@@ -65,7 +61,6 @@ export const TerminalViewport = React.forwardRef<TerminalViewportHandle, Termina
       if (term) {
         term.options.fontSize = clamped;
         fit?.fit();
-        setDimensions({ cols: term.cols, rows: term.rows });
       }
       onFontSizeChangeRef.current(clamped);
     };
@@ -151,7 +146,6 @@ export const TerminalViewport = React.forwardRef<TerminalViewportHandle, Termina
       const fitSafely = () => {
         try {
           fitAddon.fit();
-          setDimensions({ cols: term.cols, rows: term.rows });
         } catch {
           // Ignore transient zero-size measurements
         }
@@ -256,9 +250,6 @@ export const TerminalViewport = React.forwardRef<TerminalViewportHandle, Termina
     return (
       <div className="terminal-wrapper">
         <div ref={containerRef} className="terminal-host" />
-        <div className="terminal-meta-badge" aria-hidden="true">
-          {dimensions.cols}×{dimensions.rows}
-        </div>
         {isAutoScrollLocked && (
           <button
             type="button"

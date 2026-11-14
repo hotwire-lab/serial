@@ -7,7 +7,7 @@ import {
   TransportPreference,
 } from '../serial/types';
 import { ViewMode } from '../buffer/formatters';
-import { formatFramingLabel } from '../storage/preferencesStore';
+import { LineEnding, formatFramingLabel } from '../storage/preferencesStore';
 
 interface TopControlBarProps {
   snapshot: ConnectionStateSnapshot;
@@ -18,6 +18,8 @@ interface TopControlBarProps {
   showTimestamps: boolean;
   showInvisibleChars: boolean;
   fontSize: number;
+  lineEnding: LineEnding;
+  localEcho: boolean;
   onConnect: (override?: 'webserial' | 'webusb') => void;
   onDisconnect: () => void;
   onStartDemo: () => void;
@@ -31,6 +33,8 @@ interface TopControlBarProps {
   onToggleTimestamps: () => void;
   onToggleInvisibles: () => void;
   onAdjustFontSize: (delta: number) => void;
+  onCycleLineEnding: (next: LineEnding) => void;
+  onToggleLocalEcho: () => void;
   onExportLog: () => void;
   onClearTerminal: () => void;
 }
@@ -43,6 +47,8 @@ const FRAMING_PRESETS: Array<{ label: string; dataBits: 7 | 8; parity: 0 | 1 | 2
   { label: '8N2', dataBits: 8, parity: 0, stopBits: 2 },
 ];
 
+const LINE_ENDINGS: LineEnding[] = ['CRLF', 'LF', 'CR', 'RAW'];
+
 export const TopControlBar: React.FC<TopControlBarProps> = ({
   snapshot,
   capabilities,
@@ -52,6 +58,8 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   showTimestamps,
   showInvisibleChars,
   fontSize,
+  lineEnding,
+  localEcho,
   onConnect,
   onDisconnect,
   onStartDemo,
@@ -65,13 +73,16 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   onToggleTimestamps,
   onToggleInvisibles,
   onAdjustFontSize,
+  onCycleLineEnding,
+  onToggleLocalEcho,
   onExportLog,
   onClearTerminal,
 }) => {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<'none' | 'baud' | 'settings'>('none');
   const isConnected = snapshot.state === 'CONNECTED';
   const isHandshaking = snapshot.state === 'HANDSHAKING';
   const hasError = Boolean(snapshot.errorMessage);
+  const canConnect = capabilities.isSecureContext && capabilities.recommendedTransport !== 'none';
 
   const dotClass = isConnected
     ? 'status-dot connected'
@@ -79,60 +90,40 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
       ? 'status-dot error'
       : 'status-dot standby';
 
-  let statusLabel = 'Standby';
+  let connectButtonLabel = 'Connect USB';
   if (isConnected) {
-    statusLabel = snapshot.deviceName ?? 'USB Connected';
+    connectButtonLabel = snapshot.deviceName ?? 'Connected';
   } else if (isHandshaking) {
-    statusLabel = `Connecting${snapshot.deviceName ? ` • ${snapshot.deviceName}` : ''}...`;
+    connectButtonLabel = 'Connecting...';
   } else if (!capabilities.isSecureContext) {
-    statusLabel = 'HTTPS Required';
+    connectButtonLabel = 'HTTPS Required';
   } else if (capabilities.recommendedTransport === 'none') {
-    statusLabel = 'No Browser USB API';
+    connectButtonLabel = 'No USB API';
   }
 
   return (
     <header className="top-bar">
       <div className="top-bar-row">
-        {/* Connection Status & Connect/Disconnect Action */}
+        {/* Left: Unified Connection Pill Button + optional multi-port switcher */}
         <div className="connection-group">
-          <div className="status-pill" title={snapshot.vidPid ?? statusLabel}>
+          <button
+            type="button"
+            className={`connect-pill-btn ${isConnected ? 'is-connected' : ''}`}
+            onClick={() => {
+              setOpenMenu('none');
+              if (isConnected || isHandshaking) {
+                onDisconnect();
+              } else {
+                onConnect();
+              }
+            }}
+            disabled={!isConnected && !isHandshaking && !canConnect}
+            title={isConnected ? 'Click to disconnect' : 'Pair and connect USB serial device'}
+          >
             <span className={dotClass} />
-            <span className="status-text">{statusLabel}</span>
-            {isConnected && snapshot.chipType && (
-              <span className="chip-tag">{snapshot.chipType}</span>
-            )}
-          </div>
-
-          {!isConnected && !isHandshaking ? (
-            <>
-              <button
-                type="button"
-                className="btn-primary-connect"
-                onClick={() => onConnect()}
-                disabled={!capabilities.isSecureContext || capabilities.recommendedTransport === 'none'}
-                title="Pair and open USB serial device"
-              >
-                Connect USB
-              </button>
-              <button
-                type="button"
-                className="btn-pill"
-                onClick={onStartDemo}
-                title="Launch simulated ESP32-S3 shell"
-              >
-                Demo
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="btn-danger-disconnect"
-              onClick={onDisconnect}
-              title="Disconnect serial session"
-            >
-              Disconnect
-            </button>
-          )}
+            <span className="status-text">{connectButtonLabel}</span>
+            {isConnected && <span className="disconnect-hint">Disconnect</span>}
+          </button>
 
           {isConnected && snapshot.portCount > 1 && (
             <div className="port-switcher" role="group" aria-label="Serial port switcher">
@@ -150,22 +141,22 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
           )}
         </div>
 
-        {/* Serial Params, Control Lines, View Toggles & Actions */}
+        {/* Right: 3 compact controls (Baud, Clear, Settings) */}
         <div className="controls-group">
-          <div className="baud-popover-anchor">
+          <div className="popover-anchor">
             <button
               type="button"
               className="btn-pill btn-mono"
-              onClick={() => setSettingsOpen((prev) => !prev)}
-              title="Configure baud rate, framing & transport"
+              onClick={() => setOpenMenu((cur) => (cur === 'baud' ? 'none' : 'baud'))}
+              title="Select baud rate"
             >
-              {serialConfig.baudRate} <span className="muted-sub">{formatFramingLabel(serialConfig)}</span> ▾
+              {serialConfig.baudRate} ▾
             </button>
 
-            {settingsOpen && (
+            {openMenu === 'baud' && (
               <>
-                <div className="popover-backdrop" onClick={() => setSettingsOpen(false)} />
-                <div className="settings-popover" role="dialog" aria-label="Serial configuration">
+                <div className="popover-backdrop" onClick={() => setOpenMenu('none')} />
+                <div className="settings-popover settings-popover--right" role="dialog" aria-label="Baud rate">
                   <div className="popover-section-title">Baud Rate</div>
                   <div className="baud-grid">
                     {BAUD_RATES.map((baud) => (
@@ -175,16 +166,141 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
                         className={`baud-chip ${serialConfig.baudRate === baud ? 'active' : ''}`}
                         onClick={() => {
                           onChangeSerialConfig({ ...serialConfig, baudRate: baud });
-                          setSettingsOpen(false);
+                          setOpenMenu('none');
                         }}
                       >
                         {baud}
                       </button>
                     ))}
                   </div>
+                </div>
+              </>
+            )}
+          </div>
 
-                  <div className="popover-section-title">Framing & Flow Control</div>
+          <button
+            type="button"
+            className="btn-pill"
+            onClick={() => {
+              setOpenMenu('none');
+              onClearTerminal();
+            }}
+            title="Clear terminal screen and buffer"
+          >
+            Clear
+          </button>
+
+          <div className="popover-anchor">
+            <button
+              type="button"
+              className={`btn-pill btn-icon ${openMenu === 'settings' ? 'active-blue' : ''}`}
+              onClick={() => setOpenMenu((cur) => (cur === 'settings' ? 'none' : 'settings'))}
+              aria-label="Tools and settings"
+              title="Tools & Settings"
+            >
+              ⚙
+            </button>
+
+            {openMenu === 'settings' && (
+              <>
+                <div className="popover-backdrop" onClick={() => setOpenMenu('none')} />
+                <div className="settings-popover settings-popover--right settings-popover--wide" role="dialog" aria-label="Tools and settings">
+                  <div className="popover-section-title">View</div>
                   <div className="framing-row">
+                    <button
+                      type="button"
+                      className={`baud-chip ${viewMode === 'HEX' ? 'active' : ''}`}
+                      onClick={onToggleViewMode}
+                    >
+                      Mode: {viewMode}
+                    </button>
+                    <button
+                      type="button"
+                      className={`baud-chip ${showTimestamps ? 'active' : ''}`}
+                      onClick={onToggleTimestamps}
+                    >
+                      Timestamps
+                    </button>
+                    <button
+                      type="button"
+                      className={`baud-chip ${showInvisibleChars ? 'active' : ''}`}
+                      onClick={onToggleInvisibles}
+                    >
+                      Invisibles (¶)
+                    </button>
+                    <div className="font-zoom-inline">
+                      <button
+                        type="button"
+                        className="zoom-btn"
+                        onClick={() => onAdjustFontSize(-1)}
+                        aria-label="Decrease font size"
+                      >
+                        −
+                      </button>
+                      <span className="zoom-value">{fontSize}px</span>
+                      <button
+                        type="button"
+                        className="zoom-btn"
+                        onClick={() => onAdjustFontSize(1)}
+                        aria-label="Increase font size"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="popover-section-title">Input</div>
+                  <div className="framing-row">
+                    {LINE_ENDINGS.map((le) => (
+                      <button
+                        key={le}
+                        type="button"
+                        className={`baud-chip ${lineEnding === le ? 'active' : ''}`}
+                        onClick={() => onCycleLineEnding(le)}
+                      >
+                        {le}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`baud-chip ${localEcho ? 'active' : ''}`}
+                      onClick={onToggleLocalEcho}
+                    >
+                      Echo: {localEcho ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="popover-section-title">
+                    Hardware Signals ({formatFramingLabel(serialConfig)})
+                  </div>
+                  <div className="framing-row">
+                    <button
+                      type="button"
+                      className={`baud-chip ${snapshot.dtr ? 'active-green-chip' : ''}`}
+                      onClick={onToggleDtr}
+                      disabled={!isConnected}
+                    >
+                      DTR
+                    </button>
+                    <button
+                      type="button"
+                      className={`baud-chip ${snapshot.rts ? 'active-green-chip' : ''}`}
+                      onClick={onToggleRts}
+                      disabled={!isConnected}
+                    >
+                      RTS
+                    </button>
+                    <button
+                      type="button"
+                      className="baud-chip"
+                      onClick={onPulseReset}
+                      disabled={!isConnected}
+                    >
+                      Reset MCU
+                    </button>
+                  </div>
+
+                  <div className="framing-row" style={{ marginTop: 6 }}>
                     {FRAMING_PRESETS.map((preset) => {
                       const active =
                         serialConfig.dataBits === preset.dataBits &&
@@ -222,8 +338,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
                     </button>
                   </div>
 
-                  <div className="popover-section-title">Browser USB Transport</div>
-                  <div className="framing-row">
+                  <div className="framing-row" style={{ marginTop: 6 }}>
                     {(
                       [
                         { id: 'auto', label: 'Auto' },
@@ -242,102 +357,36 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
                       </button>
                     ))}
                   </div>
+
+                  <div className="popover-section-title">Session</div>
+                  <div className="framing-row">
+                    <button
+                      type="button"
+                      className="baud-chip"
+                      onClick={() => {
+                        setOpenMenu('none');
+                        onExportLog();
+                      }}
+                    >
+                      Export Log
+                    </button>
+                    {!isConnected && !isHandshaking && (
+                      <button
+                        type="button"
+                        className="baud-chip"
+                        onClick={() => {
+                          setOpenMenu('none');
+                          onStartDemo();
+                        }}
+                      >
+                        Start Demo
+                      </button>
+                    )}
+                  </div>
                 </div>
               </>
             )}
           </div>
-
-          <button
-            type="button"
-            className={`btn-pill btn-mono ${snapshot.dtr ? 'active-green' : ''}`}
-            onClick={onToggleDtr}
-            disabled={!isConnected}
-            title="Toggle DTR (Data Terminal Ready)"
-          >
-            DTR
-          </button>
-          <button
-            type="button"
-            className={`btn-pill btn-mono ${snapshot.rts ? 'active-green' : ''}`}
-            onClick={onToggleRts}
-            disabled={!isConnected}
-            title="Toggle RTS (Request To Send)"
-          >
-            RTS
-          </button>
-          <button
-            type="button"
-            className="btn-pill btn-mono btn-warn"
-            onClick={onPulseReset}
-            disabled={!isConnected}
-            title="100ms DTR/RTS reset pulse"
-          >
-            RST
-          </button>
-
-          <span className="toolbar-divider" aria-hidden="true" />
-
-          <button
-            type="button"
-            className={`btn-pill btn-mono ${viewMode === 'HEX' ? 'active-blue' : ''}`}
-            onClick={onToggleViewMode}
-            title="Toggle ASCII / HEX view"
-          >
-            {viewMode}
-          </button>
-          <button
-            type="button"
-            className={`btn-pill ${showTimestamps ? 'active-blue' : ''}`}
-            onClick={onToggleTimestamps}
-            title="Toggle line timestamps"
-          >
-            TS
-          </button>
-          <button
-            type="button"
-            className={`btn-pill btn-mono ${showInvisibleChars ? 'active-blue' : ''}`}
-            onClick={onToggleInvisibles}
-            title="Show invisible control characters (CR, LF, NUL)"
-          >
-            ¶
-          </button>
-
-          <div className="font-zoom-group" title="Terminal font size (or pinch / Ctrl+Wheel)">
-            <button
-              type="button"
-              className="zoom-btn"
-              onClick={() => onAdjustFontSize(-1)}
-              aria-label="Decrease font size"
-            >
-              −
-            </button>
-            <span className="zoom-value">{fontSize}</span>
-            <button
-              type="button"
-              className="zoom-btn"
-              onClick={() => onAdjustFontSize(1)}
-              aria-label="Increase font size"
-            >
-              +
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="btn-pill"
-            onClick={onExportLog}
-            title="Export or share terminal log"
-          >
-            Export
-          </button>
-          <button
-            type="button"
-            className="btn-pill"
-            onClick={onClearTerminal}
-            title="Clear terminal screen and buffer"
-          >
-            Clear
-          </button>
         </div>
       </div>
     </header>

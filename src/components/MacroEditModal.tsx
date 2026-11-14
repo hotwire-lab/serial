@@ -99,3 +99,4 @@ export const MacroEditModal: React.FC<MacroEditModalProps> = ({ macro, onClose, 
     </div>
   );
 };
+

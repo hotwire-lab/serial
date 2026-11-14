@@ -182,9 +182,6 @@ export const App: React.FC = () => {
     });
 
     serialManager.init();
-    terminalRef.current?.write(
-      '\x1b[90mHotWire PWA Ready — tap "Connect USB" or "Demo".\x1b[0m\r\n'
-    );
 
     return () => {
       unsubState();
@@ -432,6 +429,8 @@ export const App: React.FC = () => {
         showTimestamps={prefs.showTimestamps}
         showInvisibleChars={prefs.showInvisibleChars}
         fontSize={prefs.fontSize}
+        lineEnding={prefs.lineEnding}
+        localEcho={prefs.localEcho}
         onConnect={(override) => {
           void serialManager.connectWithPicker(override);
         }}
@@ -453,6 +452,8 @@ export const App: React.FC = () => {
         onToggleTimestamps={handleToggleTimestamps}
         onToggleInvisibles={handleToggleInvisibles}
         onAdjustFontSize={handleAdjustFontSize}
+        onCycleLineEnding={(next) => updatePrefs((cur) => ({ ...cur, lineEnding: next }))}
+        onToggleLocalEcho={() => updatePrefs((cur) => ({ ...cur, localEcho: !cur.localEcho }))}
         onExportLog={() => {
           void handleExportLog();
         }}
@@ -490,11 +491,8 @@ export const App: React.FC = () => {
         isConnected={snapshot.state === 'CONNECTED'}
         macros={prefs.macros}
         lineEnding={prefs.lineEnding}
-        localEcho={prefs.localEcho}
         onSendText={handleSendText}
         onSendRawControl={handleSendRawControl}
-        onCycleLineEnding={(next) => updatePrefs((cur) => ({ ...cur, lineEnding: next }))}
-        onToggleLocalEcho={() => updatePrefs((cur) => ({ ...cur, localEcho: !cur.localEcho }))}
         onEditMacro={setEditingMacro}
       />
 

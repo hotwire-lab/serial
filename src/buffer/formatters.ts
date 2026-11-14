@@ -169,3 +169,4 @@ export function exportRingBufferToLog(entries: RingBufferEntry[], options: ViewO
   const raw = replayEntriesToString(entries, options);
   return stripAnsi(raw).replace(/\r\n/g, '\n');
 }
+

@@ -1,15 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { LineEnding, MacroItem, nextLineEnding } from '../storage/preferencesStore';
+import { LineEnding, MacroItem } from '../storage/preferencesStore';
 
 interface BottomCommandBarProps {
   isConnected: boolean;
   macros: MacroItem[];
   lineEnding: LineEnding;
-  localEcho: boolean;
   onSendText: (text: string, lineEnding: LineEnding) => void;
   onSendRawControl: (sequence: string) => void;
-  onCycleLineEnding: (next: LineEnding) => void;
-  onToggleLocalEcho: () => void;
   onEditMacro: (macro: MacroItem) => void;
 }
 
@@ -25,16 +22,15 @@ export const BottomCommandBar: React.FC<BottomCommandBarProps> = ({
   isConnected,
   macros,
   lineEnding,
-  localEcho,
   onSendText,
   onSendRawControl,
-  onCycleLineEnding,
-  onToggleLocalEcho,
   onEditMacro,
 }) => {
   const [command, setCommand] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [showMacros, setShowMacros] = useState(false);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
@@ -88,54 +84,65 @@ export const BottomCommandBar: React.FC<BottomCommandBarProps> = ({
 
   return (
     <footer className="bottom-bar">
-      {/* Horizontal Quick Control & User Macros Row */}
-      <div className="macro-scroll-row" role="toolbar" aria-label="Shell keys and macros">
-        {SHELL_KEYS.map((key) => (
-          <button
-            key={key.label}
-            type="button"
-            className="shell-chip"
-            title={key.title}
-            disabled={!isConnected}
-            onMouseDown={(ev) => ev.preventDefault()}
-            onClick={() => onSendRawControl(key.seq)}
-          >
-            {key.label}
-          </button>
-        ))}
+      {showMacros && (
+        <div className="macro-scroll-row" role="toolbar" aria-label="Shell keys and macros">
+          {SHELL_KEYS.map((key) => (
+            <button
+              key={key.label}
+              type="button"
+              className="shell-chip"
+              title={key.title}
+              disabled={!isConnected}
+              onMouseDown={(ev) => ev.preventDefault()}
+              onClick={() => onSendRawControl(key.seq)}
+            >
+              {key.label}
+            </button>
+          ))}
 
-        <span className="toolbar-divider" aria-hidden="true" />
+          <span className="toolbar-divider" aria-hidden="true" />
 
-        {macros.map((macro) => (
-          <button
-            key={macro.id}
-            type="button"
-            className="macro-chip"
-            title={`${macro.payload} (${macro.lineEnding}) — Long-press or right-click to edit`}
-            disabled={!isConnected}
-            onMouseDown={(ev) => ev.preventDefault()}
-            onTouchStart={() => startMacroLongPress(macro)}
-            onTouchEnd={cancelMacroLongPress}
-            onTouchMove={cancelMacroLongPress}
-            onContextMenu={(ev) => {
-              ev.preventDefault();
-              onEditMacro(macro);
-            }}
-            onClick={() => {
-              if (longPressTriggeredRef.current) {
-                longPressTriggeredRef.current = false;
-                return;
-              }
-              onSendText(macro.payload, macro.lineEnding);
-            }}
-          >
-            {macro.label}
-          </button>
-        ))}
-      </div>
+          {macros.map((macro) => (
+            <button
+              key={macro.id}
+              type="button"
+              className="macro-chip"
+              title={`${macro.payload} (${macro.lineEnding}) — Long-press or right-click to edit`}
+              disabled={!isConnected}
+              onMouseDown={(ev) => ev.preventDefault()}
+              onTouchStart={() => startMacroLongPress(macro)}
+              onTouchEnd={cancelMacroLongPress}
+              onTouchMove={cancelMacroLongPress}
+              onContextMenu={(ev) => {
+                ev.preventDefault();
+                onEditMacro(macro);
+              }}
+              onClick={() => {
+                if (longPressTriggeredRef.current) {
+                  longPressTriggeredRef.current = false;
+                  return;
+                }
+                onSendText(macro.payload, macro.lineEnding);
+              }}
+            >
+              {macro.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Command Input Row */}
       <div className="command-row">
+        <button
+          type="button"
+          className={`btn-pill btn-mono ${showMacros ? 'active-blue' : ''}`}
+          onMouseDown={(ev) => ev.preventDefault()}
+          onClick={() => setShowMacros((prev) => !prev)}
+          title="Toggle shell keys and macros"
+          aria-expanded={showMacros}
+        >
+          &gt;_
+        </button>
+
         <input
           ref={inputRef}
           type="text"
@@ -143,33 +150,13 @@ export const BottomCommandBar: React.FC<BottomCommandBarProps> = ({
           value={command}
           onChange={(ev) => setCommand(ev.target.value)}
           onKeyDown={handleInputKeyDown}
-          placeholder={isConnected ? 'Type command…' : 'Connect USB or Demo to send'}
+          placeholder="Command..."
           autoCorrect="off"
           autoCapitalize="none"
           spellCheck={false}
           autoComplete="off"
           aria-label="Serial command input"
         />
-
-        <button
-          type="button"
-          className="btn-pill btn-mono"
-          onMouseDown={(ev) => ev.preventDefault()}
-          onClick={() => onCycleLineEnding(nextLineEnding(lineEnding))}
-          title="Cycle line ending: CRLF -> LF -> CR -> RAW"
-        >
-          {lineEnding}
-        </button>
-
-        <button
-          type="button"
-          className={`btn-pill ${localEcho ? 'active-blue' : ''}`}
-          onMouseDown={(ev) => ev.preventDefault()}
-          onClick={onToggleLocalEcho}
-          title="Toggle Local Echo"
-        >
-          Echo
-        </button>
 
         <button
           type="button"

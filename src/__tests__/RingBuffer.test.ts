@@ -36,3 +36,4 @@ describe('RingBuffer', () => {
     expect(rb.getAll()).toEqual([]);
   });
 });
+

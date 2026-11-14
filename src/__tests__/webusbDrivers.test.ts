@@ -110,3 +110,4 @@ describe('WebUSB serial drivers & heuristics', () => {
     expect(ports[0].dataInterfaceNumber).toBe(1);
   });
 });
+

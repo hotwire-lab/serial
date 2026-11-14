@@ -54,3 +54,4 @@ describe('Terminal formatters', () => {
     expect(cleanExport).toBe('Boot\nhelp\n');
   });
 });
+

@@ -71,3 +71,4 @@ export const INITIAL_CONNECTION_SNAPSHOT: ConnectionStateSnapshot = {
   baudRate: 115200,
   errorMessage: null,
 };
+

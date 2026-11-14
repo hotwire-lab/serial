@@ -57,3 +57,4 @@ describe('preferencesStore', () => {
     ).toBe('7E1 RTS/CTS');
   });
 });
+
