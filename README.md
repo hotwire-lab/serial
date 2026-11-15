@@ -1,8 +1,8 @@
-# HotWire PWA — Cross-Platform USB Serial Terminal
+# HotWire — Cross-Platform USB Serial Terminal
 
 A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal built with Vite, React, TypeScript, and `@xterm/xterm` for both **Desktop PCs** and **Android mobile devices**.
 
-**Live Web App (HTTPS):** https://kavierim.github.io/HotWire-PWA/
+**Live Web App (HTTPS):** https://kavierim.github.io/HotWire-Serial-Terminal/
 
 ## Transport Support
 * **Desktop (Chrome, Edge, Brave on Windows / macOS / Linux / ChromeOS):**
