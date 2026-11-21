@@ -10,20 +10,72 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>HotWire Serial Terminal — Cross-Platform Web Serial &amp; WebUSB PWA</title>
     <meta
       name="description"
-      content="HotWire Serial Terminal — Cross-Platform Web Serial &amp; WebUSB Terminal PWA for Desktop and Mobile (Rust/WebAssembly)"
+      content="Zero-install browser USB Serial Terminal PWA for Desktop &amp; Android built in Rust/WebAssembly. Supports Web Serial &amp; WebUSB drivers for CDC-ACM, FTDI, CP210x, CH340/CH341/CH9102 &amp; PL2303."
     />
+    <meta
+      name="keywords"
+      content="Web Serial terminal, WebUSB serial terminal, Android USB serial, FTDI CP210x CH340 WebUSB, ESP32 serial monitor, Rust WebAssembly, Leptos, PWA serial terminal, HotWire Serial Terminal"
+    />
+    <meta name="author" content="Kari Vierimaa, Kempele" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://kavierim.github.io/HotWire-Serial-Terminal/" />
+
+    <!-- Open Graph / Social Preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HotWire Serial Terminal" />
+    <meta property="og:url" content="https://kavierim.github.io/HotWire-Serial-Terminal/" />
+    <meta property="og:title" content="HotWire Serial Terminal — Web Serial &amp; WebUSB PWA (Rust/WASM)" />
+    <meta
+      property="og:description"
+      content="Zero-install USB Serial Monitor for Desktop &amp; Android with 2 MB ring buffer, ASCII/HEX/Timestamps/Control-glyph views, DTR/RTS profiles, RST pulse, macros &amp; Demo shell."
+    />
+    <meta property="og:image" content="https://kavierim.github.io/HotWire-Serial-Terminal/icon-512.png" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="HotWire Serial Terminal — Web Serial &amp; WebUSB PWA (Rust/WASM)" />
+    <meta
+      name="twitter:description"
+      content="Cross-platform Web Serial &amp; WebUSB terminal PWA for Desktop &amp; Android with FTDI, CP210x, CH340, PL2303 &amp; CDC-ACM drivers."
+    />
+    <meta name="twitter:image" content="https://kavierim.github.io/HotWire-Serial-Terminal/icon-512.png" />
+
+    <!-- Structured Data for Search Engines -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "HotWire Serial Terminal",
+        "operatingSystem": "Web, Windows, macOS, Linux, Android",
+        "applicationCategory": "UtilitiesApplication",
+        "url": "https://kavierim.github.io/HotWire-Serial-Terminal/",
+        "description": "Zero-install cross-platform Web Serial and WebUSB USB Serial Terminal PWA in Rust/WebAssembly for Desktop and Android.",
+        "author": {
+          "@type": "Person",
+          "name": "Kari Vierimaa"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <title>HotWire Serial Terminal — Web Serial &amp; WebUSB PWA</title>
 
     <link data-trunk rel="css" href="styles.css" />
     <link data-trunk rel="copy-file" href="public/icon.svg" />
     <link data-trunk rel="copy-file" href="public/icon-192.png" />
     <link data-trunk rel="copy-file" href="public/icon-512.png" />
     <link data-trunk rel="copy-file" href="public/manifest.webmanifest" />
+    <link data-trunk rel="copy-file" href="public/robots.txt" />
+    <link data-trunk rel="copy-file" href="public/sitemap.xml" />
     <link data-trunk rel="copy-file" href="public/sw.js" />
     <link data-trunk rel="copy-file" href="public/.nojekyll" />
     <link data-trunk rel="rust" />
