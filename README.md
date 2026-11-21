@@ -4,6 +4,8 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
 
 **Live Web App (HTTPS):** https://kavierim.github.io/HotWire-Serial-Terminal/
 
+![HotWire Serial Terminal running in Demo mode with ASCII/HEX views, DTR/RTS/RST controls, and customizable macros](docs/serial-terminal-preview.jpg)
+
 ## Transport Support
 * **Desktop (Chrome, Edge, Brave on Windows / macOS / Linux / ChromeOS):**
   * Uses **Web Serial API** (`navigator.serial`) by default for native OS serial drivers, with optional **WebUSB** (`navigator.usb`) fallback.
