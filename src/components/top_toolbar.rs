@@ -16,6 +16,7 @@ pub fn TopToolbar(
     on_start_demo: Callback<()>,
     on_mode_change: Callback<TerminalMode>,
     on_baud_change: Callback<u32>,
+    on_toggle_auto_connect: Callback<()>,
     on_toggle_dtr: Callback<()>,
     on_toggle_rts: Callback<()>,
     on_pulse_rst: Callback<()>,
@@ -207,6 +208,15 @@ pub fn TopToolbar(
                             .into_any()
                         }
                     }}
+
+                    <button
+                        type="button"
+                        class=move || if prefs.get().auto_connect { "btn btn-sm btn-accent active" } else { "btn btn-sm btn-secondary" }
+                        on:click=move |_| on_toggle_auto_connect.run(())
+                        title="Auto-connect on startup and automatically reconnect if USB device disappears and returns"
+                    >
+                        "Auto"
+                    </button>
 
                     <button
                         type="button"

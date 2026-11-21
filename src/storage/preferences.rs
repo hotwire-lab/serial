@@ -91,10 +91,16 @@ impl TerminalMode {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HotWirePreferences {
     pub mode: TerminalMode,
     pub serial: SerialPortConfig,
+    #[serde(default = "default_true")]
+    pub auto_connect: bool,
     pub bridge_swap_pins: bool,
     pub bridge_invert_rx: bool,
     pub bridge_invert_tx: bool,
@@ -112,6 +118,7 @@ impl Default for HotWirePreferences {
         Self {
             mode: TerminalMode::DirectUsb,
             serial: SerialPortConfig::default(),
+            auto_connect: true,
             bridge_swap_pins: false,
             bridge_invert_rx: false,
             bridge_invert_tx: false,

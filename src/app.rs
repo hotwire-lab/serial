@@ -146,6 +146,8 @@ pub fn App() -> impl IntoView {
                 }
             },
         );
+        let p = prefs.get_untracked();
+        st.set_auto_connect(p.auto_connect, &p.serial);
     });
 
     let connected = Signal::derive(move || transport.get().status == ConnectionStatus::Connected);
@@ -212,12 +214,22 @@ pub fn App() -> impl IntoView {
         }
     });
 
+    let on_toggle_auto_connect = Callback::new(move |_| {
+        prefs.update(|p| {
+            p.auto_connect = !p.auto_connect;
+            save_preferences(p);
+        });
+        let p = prefs.get_untracked();
+        serial_transport.with_value(|t| t.set_auto_connect(p.auto_connect, &p.serial));
+    });
+
     let on_baud_change = Callback::new(move |baud: u32| {
         prefs.update(|p| {
             p.serial.baud_rate = baud;
             save_preferences(p);
         });
         let p = prefs.get_untracked();
+        serial_transport.with_value(|t| t.set_auto_connect(p.auto_connect, &p.serial));
         if p.mode == TerminalMode::XiaoUartBridge {
             send_bridge_uart_cfg();
         } else {
@@ -388,6 +400,7 @@ pub fn App() -> impl IntoView {
                 on_start_demo=on_start_demo
                 on_mode_change=on_mode_change
                 on_baud_change=on_baud_change
+                on_toggle_auto_connect=on_toggle_auto_connect
                 on_toggle_dtr=on_toggle_dtr
                 on_toggle_rts=on_toggle_rts
                 on_pulse_rst=on_pulse_rst

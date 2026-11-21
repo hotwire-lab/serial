@@ -277,6 +277,8 @@ class WebUsbDriverSession {
   }
 }
 
+const LAST_DEV_KEY = 'hotwire_serial_last_device';
+
 const state = {
   webSerialPort: null,
   webSerialReader: null,
@@ -292,9 +294,101 @@ const state = {
   dtr: true,
   rts: false,
   transport: 'none',
+  autoConnectEnabled: true,
+  manualDisconnect: false,
+  flashing: false,
+  reconnecting: false,
+  reconnectTimer: null,
+  listenersRegistered: false,
   onState: null,
   onBytes: null,
 };
+
+function saveLastDevice(backend, vid, pid, serialNumber = '') {
+  try {
+    localStorage.setItem(
+      LAST_DEV_KEY,
+      JSON.stringify({ backend, vid: vid ?? 0, pid: pid ?? 0, serialNumber: serialNumber ?? '' }),
+    );
+  } catch {}
+}
+
+function loadLastDevice() {
+  try {
+    const raw = localStorage.getItem(LAST_DEV_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchesLastSerialPort(port, last) {
+  if (!last || last.backend !== 'webserial') return false;
+  const info = port.getInfo?.() ?? {};
+  const vid = info.usbVendorId ?? 0;
+  const pid = info.usbProductId ?? 0;
+  if (last.vid === 0 && last.pid === 0) return true;
+  return vid === last.vid && pid === last.pid;
+}
+
+function matchesLastUsbDevice(device, last) {
+  if (!last || last.backend !== 'webusb') return false;
+  if ((device.vendorId ?? 0) !== last.vid || (device.productId ?? 0) !== last.pid) return false;
+  if (last.serialNumber && device.serialNumber && device.serialNumber !== last.serialNumber) {
+    return false;
+  }
+  return true;
+}
+
+function scheduleAutoReconnect(candidate = null, delayMs = 350, attempt = 0) {
+  if (!state.autoConnectEnabled || state.manualDisconnect || state.flashing) return;
+  if (state.webSerialPort || state.webUsbDevice || state.reconnecting) return;
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+
+  state.reconnectTimer = setTimeout(async () => {
+    state.reconnectTimer = null;
+    if (!state.autoConnectEnabled || state.manualDisconnect || state.flashing) return;
+    if (state.webSerialPort || state.webUsbDevice || state.reconnecting) return;
+
+    const last = loadLastDevice();
+    const backend = last?.backend || preferredBackend();
+    state.reconnecting = true;
+    try {
+      if (backend === 'webusb' && navigator.usb) {
+        const devices = await navigator.usb.getDevices();
+        let target = candidate && typeof candidate.open === 'function' && (!last || matchesLastUsbDevice(candidate, last))
+          ? candidate
+          : devices.find((d) => matchesLastUsbDevice(d, last));
+        if (!target && !last && devices.length === 1) target = devices[0];
+        if (target) {
+          await openWebUsb(target, state.cfg, 0);
+          return;
+        }
+      } else if (navigator.serial) {
+        const ports = await navigator.serial.getPorts();
+        let target = candidate && typeof candidate.open === 'function' && (!last || matchesLastSerialPort(candidate, last))
+          ? candidate
+          : ports.find((p) => matchesLastSerialPort(p, last));
+        if (!target && !last && ports.length === 1) target = ports[0];
+        if (target) {
+          await openWebSerial(target, state.cfg);
+          return;
+        }
+      }
+    } catch {
+      if (attempt < 3 && state.autoConnectEnabled && !state.manualDisconnect && !state.flashing) {
+        state.reconnecting = false;
+        scheduleAutoReconnect(candidate, 500, attempt + 1);
+        return;
+      }
+    } finally {
+      state.reconnecting = false;
+    }
+  }, delayMs);
+}
 
 function notifyState(status, transport, deviceName, vidPid, portIdx, portCount, dtr, rts, errorMessage) {
   state.transport = transport;
@@ -402,6 +496,8 @@ async function openWebSerial(port, cfg) {
 
   state.webSerialPort = port;
   state.webSerialWriter = port.writable.getWriter();
+  state.manualDisconnect = false;
+  saveLastDevice('webserial', vid, pid, '');
   try { await port.setSignals({ dataTerminalReady: state.dtr, requestToSend: state.rts }); } catch {}
   await acquireWakeLock();
   notifyState('connected', 'webserial', identifyChip(vid), formatVidPid(vid, pid), 0, 1, state.dtr, state.rts, '');
@@ -470,6 +566,8 @@ async function openWebUsb(device, cfg, portIdx = 0) {
 
   const session = new WebUsbDriverSession(device, desc);
   state.webUsbSession = session;
+  state.manualDisconnect = false;
+  saveLastDevice('webusb', vid, pid, device.serialNumber ?? '');
   await session.init(cfg, state.dtr, state.rts);
   await acquireWakeLock();
   notifyState('connected', 'webusb', name, vp, idx, ports.length, state.dtr, state.rts, '');
@@ -508,7 +606,13 @@ async function openWebUsb(device, cfg, portIdx = 0) {
 export function js_init_serial(onState, onBytes) {
   state.onState = onState;
   state.onBytes = onBytes;
+  if (state.listenersRegistered) return;
+  state.listenersRegistered = true;
+
   if ('serial' in navigator && navigator.serial) {
+    navigator.serial.addEventListener('connect', (ev) => {
+      scheduleAutoReconnect(ev?.port ?? null, 350);
+    });
     navigator.serial.addEventListener('disconnect', () => {
       if (state.transport === 'webserial') {
         state.epoch += 1;
@@ -517,6 +621,9 @@ export function js_init_serial(onState, onBytes) {
     });
   }
   if ('usb' in navigator && navigator.usb) {
+    navigator.usb.addEventListener('connect', (ev) => {
+      scheduleAutoReconnect(ev?.device ?? null, 350);
+    });
     navigator.usb.addEventListener('disconnect', (ev) => {
       if (state.transport === 'webusb' && ev.device === state.webUsbDevice) {
         state.epoch += 1;
@@ -526,7 +633,21 @@ export function js_init_serial(onState, onBytes) {
   }
 }
 
+export function js_set_auto_connect(enabled, baudRate, dataBits, stopBits, parity, flowControl) {
+  state.autoConnectEnabled = Boolean(enabled);
+  state.cfg = { baudRate, dataBits, stopBits, parity, flowControl };
+  if (state.autoConnectEnabled && !state.manualDisconnect && !state.flashing && !state.webSerialPort && !state.webUsbDevice) {
+    if (loadLastDevice()) {
+      scheduleAutoReconnect(null, 80);
+    }
+  } else if (!state.autoConnectEnabled && state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+}
+
 export async function js_connect_serial(baudRate, dataBits, stopBits, parity, flowControl) {
+  state.manualDisconnect = false;
   const cfg = { baudRate, dataBits, stopBits, parity, flowControl };
   const backend = preferredBackend();
   if (backend === 'webusb' && navigator.usb) {
@@ -541,6 +662,11 @@ export async function js_connect_serial(baudRate, dataBits, stopBits, parity, fl
 }
 
 export async function js_disconnect_serial() {
+  state.manualDisconnect = true;
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
   state.epoch += 1;
   await closeAll();
   notifyState('waiting', 'none', '', '', 0, 0, false, false, '');
@@ -596,6 +722,35 @@ export async function js_switch_usb_port(portIdx) {
 }
 
 export async function js_flash_firmware(
+  boardId,
+  forceOtherPort,
+  flashOffset,
+  customFile,
+  bootloaderCmd,
+  onLog,
+  onProgress,
+) {
+  state.flashing = true;
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+  try {
+    return await flashFirmwareInternal(
+      boardId,
+      forceOtherPort,
+      flashOffset,
+      customFile,
+      bootloaderCmd,
+      onLog,
+      onProgress,
+    );
+  } finally {
+    state.flashing = false;
+  }
+}
+
+async function flashFirmwareInternal(
   boardId,
   forceOtherPort,
   flashOffset,

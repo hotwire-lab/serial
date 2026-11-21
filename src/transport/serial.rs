@@ -85,6 +85,14 @@ extern "C" {
         flow_control: u8,
     ) -> js_sys::Promise;
     fn js_switch_usb_port(port_idx: u32) -> js_sys::Promise;
+    fn js_set_auto_connect(
+        enabled: bool,
+        baud_rate: u32,
+        data_bits: u8,
+        stop_bits: u8,
+        parity: u8,
+        flow_control: u8,
+    );
     fn js_flash_firmware(
         board_id: &str,
         force_other_port: bool,
@@ -390,6 +398,17 @@ impl SerialTransport {
         spawn_local(async move {
             let _ = wasm_bindgen_futures::JsFuture::from(js_switch_usb_port(port_idx)).await;
         });
+    }
+
+    pub fn set_auto_connect(&self, enabled: bool, cfg: &SerialPortConfig) {
+        js_set_auto_connect(
+            enabled,
+            cfg.baud_rate,
+            cfg.data_bits,
+            cfg.stop_bits,
+            cfg.parity,
+            cfg.flow_control,
+        );
     }
 
     pub async fn flash_firmware<FL, FP>(
