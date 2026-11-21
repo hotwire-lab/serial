@@ -1,4 +1,4 @@
-name: Deploy HotWire PWA to GitHub Pages
+name: Deploy HotWire Serial Terminal PWA to GitHub Pages
 
 on:
   push:
@@ -21,23 +21,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: '22'
-          cache: 'npm'
+          targets: wasm32-unknown-unknown
+          components: clippy
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
-      - name: Run lint, typecheck & tests
+      - name: Install Trunk
+        uses: taiki-e/install-action@trunk
+
+      - name: Run clippy & tests
         run: |
-          npm run lint
-          npm run typecheck
-          npm test
+          cargo clippy --all-targets -- -D warnings
+          cargo test
 
-      - name: Build production PWA bundle
-        run: npm run build
+      - name: Build production WASM PWA bundle
+        run: trunk build --release
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
@@ -57,4 +59,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

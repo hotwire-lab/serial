@@ -1,6 +1,6 @@
 # HotWire — Cross-Platform USB Serial Terminal
 
-A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal built with Vite, React, TypeScript, and `@xterm/xterm` for both **Desktop PCs** and **Android mobile devices**.
+A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](https://trunkrs.dev/)) for both **Desktop PCs** and **Android mobile devices**.
 
 **Live Web App (HTTPS):** https://kavierim.github.io/HotWire-Serial-Terminal/
 
@@ -26,18 +26,14 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
 
 ## Development
 
-```bash
-npm install
-npm run dev
-```
-
-Run checks and production build:
+Built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](https://trunkrs.dev/)).
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
+rustup target add wasm32-unknown-unknown
+cargo clippy --all-targets -- -D warnings
+cargo test
+trunk serve          # local dev server (http://127.0.0.1:8082)
+trunk build --release
 ```
 
 > **Note:** Browsers require a secure context (`https://` or `http://localhost`) for Web Serial and WebUSB hardware access.

@@ -12,16 +12,29 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta
       name="description"
-      content="HotWire — Cross-Platform WebSerial & WebUSB Terminal PWA for Desktop and Mobile"
+      content="HotWire Serial Terminal — Cross-Platform Web Serial &amp; WebUSB Terminal PWA for Desktop and Mobile (Rust/WebAssembly)"
     />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <title>HotWire — USB Serial Terminal</title>
+    <title>HotWire Serial Terminal — Web Serial &amp; WebUSB PWA</title>
+
+    <link data-trunk rel="css" href="styles.css" />
+    <link data-trunk rel="copy-file" href="public/icon.svg" />
+    <link data-trunk rel="copy-file" href="public/icon-192.png" />
+    <link data-trunk rel="copy-file" href="public/icon-512.png" />
+    <link data-trunk rel="copy-file" href="public/manifest.webmanifest" />
+    <link data-trunk rel="copy-file" href="public/sw.js" />
+    <link data-trunk rel="copy-file" href="public/.nojekyll" />
+    <link data-trunk rel="rust" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>
-

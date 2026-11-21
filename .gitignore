@@ -1,10 +1,5 @@
-node_modules/
-dist/
-coverage/
-.env
-.env*.local
-*.tsbuildinfo
+/target
+/dist
+*.log
 .DS_Store
-npm-debug.log*
-yarn-error.log*
-
+Thumbs.db
