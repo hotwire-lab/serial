@@ -14,6 +14,7 @@ pub fn TopToolbar(
     prefs: RwSignal<HotWirePreferences>,
     bridge_caps: RwSignal<Option<BridgeCapabilities>>,
     settings_open: RwSignal<bool>,
+    settings_tab: RwSignal<String>,
     on_connect: Callback<()>,
     on_disconnect: Callback<()>,
     on_start_demo: Callback<()>,
@@ -24,9 +25,11 @@ pub fn TopToolbar(
     on_toggle_rts: Callback<()>,
     on_pulse_rst: Callback<()>,
     on_switch_port: Callback<u32>,
-    on_open_flasher: Callback<()>,
+    on_toggle_flasher: Callback<()>,
 ) -> impl IntoView {
     let is_active = move || transport.get().status.is_active();
+    let flasher_open =
+        Signal::derive(move || settings_open.get() && settings_tab.get() == "flasher");
 
     let subtitle = Signal::derive(move || {
         if prefs.get().mode == TerminalMode::XiaoUartBridge {
@@ -48,8 +51,8 @@ pub fn TopToolbar(
             on_connect=on_connect
             on_disconnect=on_disconnect
             on_start_demo=on_start_demo
-            flasher_open=settings_open
-            on_toggle_flasher=on_open_flasher
+            flasher_open=flasher_open
+            on_toggle_flasher=on_toggle_flasher
         >
             <select
                 class="ctrl-select"
@@ -156,8 +159,21 @@ pub fn TopToolbar(
 
             <button
                 type="button"
-                class=move || if settings_open.get() { "btn btn-secondary active" } else { "btn btn-secondary" }
-                on:click=move |_| settings_open.update(|v| *v = !*v)
+                class=move || {
+                    if settings_open.get() && settings_tab.get() != "flasher" {
+                        "btn btn-secondary active"
+                    } else {
+                        "btn btn-secondary"
+                    }
+                }
+                on:click=move |_| {
+                    if settings_open.get_untracked() && settings_tab.get_untracked() != "flasher" {
+                        settings_open.set(false);
+                    } else {
+                        settings_tab.set("settings".to_string());
+                        settings_open.set(true);
+                    }
+                }
                 title="Serial Framing, Bridge & Macro Editor"
             >
                 "⚙ Settings"

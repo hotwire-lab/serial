@@ -87,7 +87,25 @@ pub fn App() -> impl IntoView {
     let editing_macro_idx = RwSignal::new(None::<usize>);
     let bridge_caps = RwSignal::new(None::<BridgeCapabilities>);
     let bridge_demuxer = StoredValue::new_local(BridgeDemuxer::new());
-    let was_connected = StoredValue::new_local(false);
+    let was_usb_connected = StoredValue::new_local(false);
+
+    let build_bridge_init_cmds = |p: &crate::storage::preferences::HotWirePreferences| -> Vec<u8> {
+        if p.mode == TerminalMode::XiaoUartBridge {
+            let mut init_bytes = build_get_caps_frame();
+            init_bytes.extend_from_slice(&build_uart_cfg_frame(
+                p.serial.baud_rate,
+                p.serial.data_bits,
+                p.serial.stop_bits,
+                p.serial.parity,
+                p.bridge_swap_pins,
+                p.bridge_invert_rx,
+                p.bridge_invert_tx,
+            ));
+            init_bytes
+        } else {
+            Vec::new()
+        }
+    };
 
     let flush_view_now = move || {
         ring_buffer.with_value(|rb| total_bytes.set(rb.total_bytes()));
@@ -167,13 +185,15 @@ pub fn App() -> impl IntoView {
     };
 
     serial_transport.with_value(|st| {
+        let initial_p = prefs.get_untracked();
+        st.set_init_commands(build_bridge_init_cmds(&initial_p));
         st.init(
             move |snap: TransportSnapshot| {
                 let now_connected = snap.status.is_active();
                 let is_usb = snap.status.is_usb_connected();
                 let dev_name = snap.device_name.clone();
-                let prev = was_connected.get_value();
-                was_connected.set_value(now_connected);
+                let prev_usb = was_usb_connected.get_value();
+                was_usb_connected.set_value(is_usb);
                 transport.set(snap.clone());
 
                 if !now_connected {
@@ -181,11 +201,12 @@ pub fn App() -> impl IntoView {
                     identity.set(None);
                     bridge_caps.set(None);
                     bridge_demuxer.update_value(|d| d.reset());
-                } else if !prev && is_usb {
+                } else if !prev_usb && is_usb {
                     let p = prefs.get_untracked();
                     if p.mode == TerminalMode::XiaoUartBridge {
                         mismatch.set(None);
                         flasher_mismatch.set(None);
+                        bridge_demuxer.update_value(|d| d.reset());
                         handshake_guard.update_value(|g| {
                             g.arm_timeout(dev_name, 5000, move |mm| {
                                 mismatch.set(Some(mm.clone()));
@@ -193,18 +214,6 @@ pub fn App() -> impl IntoView {
                                 serial_transport.with_value(|t| t.disconnect());
                             });
                         });
-                        bridge_demuxer.update_value(|d| d.reset());
-                        let mut init_bytes = build_get_caps_frame();
-                        init_bytes.extend_from_slice(&build_uart_cfg_frame(
-                            p.serial.baud_rate,
-                            p.serial.data_bits,
-                            p.serial.stop_bits,
-                            p.serial.parity,
-                            p.bridge_swap_pins,
-                            p.bridge_invert_rx,
-                            p.bridge_invert_tx,
-                        ));
-                        serial_transport.with_value(|t| t.send_bytes(&init_bytes));
                     } else {
                         handshake_guard.update_value(|g| g.cancel());
                     }
@@ -234,6 +243,9 @@ pub fn App() -> impl IntoView {
                                 }
                                 mismatch.set(None);
                                 flasher_mismatch.set(None);
+                                if settings_tab.get_untracked() == "flasher" {
+                                    settings_open.set(false);
+                                }
                                 identity.set(Some(id));
                                 bridge_caps.set(Some(caps));
                             }
@@ -270,6 +282,7 @@ pub fn App() -> impl IntoView {
     let send_bridge_uart_cfg = move || {
         let snap = transport.get_untracked();
         let p = prefs.get_untracked();
+        serial_transport.with_value(|t| t.set_init_commands(build_bridge_init_cmds(&p)));
         if snap.status.is_active()
             && snap.transport != TransportKind::Demo
             && p.mode == TerminalMode::XiaoUartBridge
@@ -292,6 +305,9 @@ pub fn App() -> impl IntoView {
             p.mode = mode;
             save_preferences(p);
         });
+        let p = prefs.get_untracked();
+        let init_bytes = build_bridge_init_cmds(&p);
+        serial_transport.with_value(|t| t.set_init_commands(init_bytes.clone()));
         bridge_demuxer.update_value(|d| d.reset());
         if mode == TerminalMode::DirectUsb {
             handshake_guard.update_value(|g| g.cancel());
@@ -299,7 +315,6 @@ pub fn App() -> impl IntoView {
             flasher_mismatch.set(None);
             identity.set(None);
             bridge_caps.set(None);
-            let p = prefs.get_untracked();
             serial_transport
                 .with_value(|t| t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect)));
         } else {
@@ -315,17 +330,6 @@ pub fn App() -> impl IntoView {
                         serial_transport.with_value(|t| t.disconnect());
                     });
                 });
-                let p = prefs.get_untracked();
-                let mut init_bytes = build_get_caps_frame();
-                init_bytes.extend_from_slice(&build_uart_cfg_frame(
-                    p.serial.baud_rate,
-                    p.serial.data_bits,
-                    p.serial.stop_bits,
-                    p.serial.parity,
-                    p.bridge_swap_pins,
-                    p.bridge_invert_rx,
-                    p.bridge_invert_tx,
-                ));
                 serial_transport.with_value(|t| t.send_bytes(&init_bytes));
             }
         }
@@ -465,6 +469,16 @@ pub fn App() -> impl IntoView {
         settings_open.set(true);
     });
 
+    let on_toggle_flasher = Callback::new(move |_| {
+        editing_macro_idx.set(None);
+        if settings_open.get_untracked() && settings_tab.get_untracked() == "flasher" {
+            settings_open.set(false);
+        } else {
+            settings_tab.set("flasher".to_string());
+            settings_open.set(true);
+        }
+    });
+
     let on_update_serial_cfg = Callback::new(move |(db, sb, par, fc): (u8, u8, u8, u8)| {
         prefs.update(|p| {
             p.serial.data_bits = db;
@@ -516,6 +530,7 @@ pub fn App() -> impl IntoView {
                 prefs=prefs
                 bridge_caps=bridge_caps
                 settings_open=settings_open
+                settings_tab=settings_tab
                 on_connect=on_connect
                 on_disconnect=on_disconnect
                 on_start_demo=on_start_demo
@@ -526,7 +541,7 @@ pub fn App() -> impl IntoView {
                 on_toggle_rts=on_toggle_rts
                 on_pulse_rst=on_pulse_rst
                 on_switch_port=on_switch_port
-                on_open_flasher=on_open_flasher
+                on_toggle_flasher=on_toggle_flasher
             />
 
             <main class="serial-main">

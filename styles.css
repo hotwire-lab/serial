@@ -306,3 +306,13 @@ html, body {
   color: var(--text);
   font-family: "JetBrains Mono", "Fira Code", monospace;
 }
+
+@media (max-width: 720px) {
+  .command-bar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
