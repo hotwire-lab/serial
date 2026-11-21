@@ -458,10 +458,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
+name = "hotwire-core"
+version = "0.1.0"
+source = "git+https://github.com/kavierim/hotwire-core?tag=v0.1.0#eae3b706a919ff8dad60d272e7f2dcde4aef0a84"
+dependencies = [
+ "js-sys",
+ "leptos",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "hotwire-serial-terminal"
 version = "2.0.0"
 dependencies = [
  "console_error_panic_hook",
+ "hotwire-core",
  "js-sys",
  "leptos",
  "serde",

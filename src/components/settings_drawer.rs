@@ -1,15 +1,29 @@
+use hotwire_core::flasher::{FirmwareProfile, FlasherPanel};
+use hotwire_core::protocol::{BoardIdentity, ToolId};
 use leptos::prelude::*;
-use leptos::task::spawn_local;
-use wasm_bindgen::JsCast;
 
 use crate::storage::preferences::{HotWirePreferences, LineEnding};
 use crate::transport::serial::SerialTransport;
+
+fn uart_bridge_profiles() -> Vec<FirmwareProfile> {
+    vec![
+        FirmwareProfile::xiao_esp32s3(
+            "HotWire_UART_XIAO_ESP32S3.ino",
+            "3.3 V TTL USB-to-UART Bridge: D6 (GPIO43) TX, D7 (GPIO44) RX — live baud/framing, Swap TX/RX, Invert",
+        ),
+        FirmwareProfile::xiao_esp32c6(
+            "HotWire_UART_XIAO_ESP32C6.ino",
+            "3.3 V TTL USB-to-UART Bridge: D6 (GPIO16) TX, D7 (GPIO17) RX — live baud/framing, Swap TX/RX, Invert",
+        ),
+    ]
+}
 
 #[component]
 #[allow(clippy::too_many_arguments)]
 pub fn SettingsDrawer(
     open: RwSignal<bool>,
     active_tab: RwSignal<String>,
+    identity: RwSignal<Option<BoardIdentity>>,
     prefs: RwSignal<HotWirePreferences>,
     editing_macro_idx: RwSignal<Option<usize>>,
     serial_transport: StoredValue<SerialTransport, LocalStorage>,
@@ -22,14 +36,6 @@ pub fn SettingsDrawer(
     let m_payload = RwSignal::new(String::new());
     let m_le = RwSignal::new(LineEnding::Crlf);
 
-    let board_id = RwSignal::new("xiao_esp32s3".to_string());
-    let flash_offset = RwSignal::new("0x10000".to_string());
-    let flash_busy = RwSignal::new(false);
-    let flash_progress = RwSignal::new(0u32);
-    let flash_error = RwSignal::new(Option::<String>::None);
-    let flash_logs = RwSignal::new(Vec::<String>::new());
-    let custom_file = RwSignal::new_local(Option::<web_sys::File>::None);
-
     Effect::new(move |_| {
         if let Some(idx) = editing_macro_idx.get() {
             active_tab.set("settings".to_string());
@@ -40,54 +46,6 @@ pub fn SettingsDrawer(
             }
         }
     });
-
-    let start_flash = move |force_other_port: bool| {
-        if flash_busy.get_untracked() {
-            return;
-        }
-        flash_busy.set(true);
-        flash_progress.set(0);
-        flash_error.set(None);
-        flash_logs.set(vec!["Initializing XIAO ESP32 Web Flasher...".to_string()]);
-
-        let board = board_id.get_untracked();
-        let offset = flash_offset.get_untracked();
-        let file = custom_file.get_untracked();
-        let transport = serial_transport.with_value(|t| t.clone());
-
-        spawn_local(async move {
-            let res = transport
-                .flash_firmware(
-                    &board,
-                    force_other_port,
-                    &offset,
-                    file.as_ref(),
-                    move |msg| {
-                        flash_logs.update(|logs| {
-                            logs.push(msg);
-                            if logs.len() > 80 {
-                                logs.remove(0);
-                            }
-                        });
-                    },
-                    move |pct| {
-                        flash_progress.set(pct);
-                    },
-                )
-                .await;
-
-            if let Err(err) = res {
-                flash_error.set(Some(err.clone()));
-                flash_logs.update(|logs| logs.push(format!("Error: {err}")));
-            } else {
-                flash_progress.set(100);
-                flash_logs.update(|logs| {
-                    logs.push("Done! Select 'XIAO UART (D6/D7)' mode and Connect USB.".to_string());
-                });
-            }
-            flash_busy.set(false);
-        });
-    };
 
     view! {
         <div class=move || if open.get() || editing_macro_idx.get().is_some() { "drawer-backdrop open" } else { "drawer-backdrop" }>
@@ -129,83 +87,12 @@ pub fn SettingsDrawer(
                         <div class="drawer-body">
                             <div class="drawer-col">
                                 <h4>"XIAO ESP32 UART Bridge Web Flasher"</h4>
-                                <div class="form-grid">
-                                    <label class="ctrl-field">
-                                        <span class="group-label">"Target Board"</span>
-                                        <select
-                                            class="ctrl-select"
-                                            prop:value=move || board_id.get()
-                                            on:change=move |ev| board_id.set(event_target_value(&ev))
-                                            disabled=move || flash_busy.get()
-                                        >
-                                            <option value="xiao_esp32s3">"Seeed Studio XIAO ESP32-S3 (D6=GPIO43 TX, D7=GPIO44 RX)"</option>
-                                            <option value="xiao_esp32c6">"Seeed Studio XIAO ESP32-C6 (D6=GPIO16 TX, D7=GPIO17 RX)"</option>
-                                        </select>
-                                    </label>
-
-                                    <label class="ctrl-field">
-                                        <span class="group-label">"Custom .bin (optional)"</span>
-                                        <input
-                                            type="file"
-                                            accept=".bin"
-                                            class="cmd-input"
-                                            disabled=move || flash_busy.get()
-                                            on:change=move |ev| {
-                                                let file = ev
-                                                    .target()
-                                                    .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                                    .and_then(|input| input.files())
-                                                    .and_then(|list| list.get(0));
-                                                custom_file.set(file);
-                                            }
-                                        />
-                                    </label>
-                                </div>
-
-                                <div class="inline-controls">
-                                    {move || custom_file.get().map(|_| view! {
-                                        <label class="ctrl-field">
-                                            <span class="group-label">"Offset"</span>
-                                            <input
-                                                type="text"
-                                                class="cmd-input cmd-input-sm"
-                                                prop:value=move || flash_offset.get()
-                                                on:input=move |ev| flash_offset.set(event_target_value(&ev))
-                                            />
-                                        </label>
-                                    })}
-                                    <button
-                                        type="button"
-                                        class="btn btn-primary"
-                                        disabled=move || flash_busy.get()
-                                        on:click=move |_| start_flash(false)
-                                    >
-                                        {move || if flash_busy.get() { "Flashing..." } else { "⚡ Flash Firmware" }}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="btn btn-secondary"
-                                        disabled=move || flash_busy.get()
-                                        on:click=move |_| start_flash(true)
-                                    >
-                                        "Select Other Port"
-                                    </button>
-                                </div>
-
-                                <div class="progress-bar">
-                                    <div
-                                        class="progress-fill"
-                                        style=move || format!("width: {}%;", flash_progress.get())
-                                    />
-                                </div>
-
-                                {move || flash_error.get().map(|err| view! {
-                                    <div class="flash-error">{err}</div>
-                                })}
-
-                                <pre class="flash-log">
-                                    {move || flash_logs.get().join("\n")}
-                                </pre>
+                                <FlasherPanel
+                                    profiles=uart_bridge_profiles()
+                                    transport=serial_transport
+                                    expected_tool=ToolId::SerialTerminal
+                                    identity=identity
+                                />
                             </div>
 
                             <div class="drawer-col">

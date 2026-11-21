@@ -1,3 +1,5 @@
+use hotwire_core::protocol::BoardIdentity;
+use hotwire_core::ui::HotWireTheme;
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -16,7 +18,7 @@ use crate::storage::preferences::{
     load_preferences, save_preferences, LineEnding, TerminalMode,
 };
 use crate::transport::serial::{
-    ConnectionStatus, SerialTransport, TransportKind, TransportSnapshot,
+    create_terminal_transport, to_core_serial_config, TransportKind, TransportSnapshot,
 };
 
 fn now_ms() -> u64 {
@@ -60,9 +62,14 @@ fn download_text_file(filename: &str, content: &str) {
 
 #[component]
 pub fn App() -> impl IntoView {
-    let serial_transport = StoredValue::new_local(SerialTransport::new());
+    let initial_prefs = load_preferences();
+    let serial_transport = StoredValue::new_local(create_terminal_transport(
+        &initial_prefs.serial,
+        initial_prefs.auto_connect,
+    ));
     let transport = RwSignal::new(serial_transport.with_value(|t| t.snapshot()));
-    let prefs = RwSignal::new(load_preferences());
+    let identity = RwSignal::new(None::<BoardIdentity>);
+    let prefs = RwSignal::new(initial_prefs);
 
     let ring_buffer = StoredValue::new_local(RingBuffer::default());
     let rendered_text = RwSignal::new(String::new());
@@ -101,12 +108,13 @@ pub fn App() -> impl IntoView {
     serial_transport.with_value(|st| {
         st.init(
             move |snap: TransportSnapshot| {
-                let now_connected = snap.status == ConnectionStatus::Connected;
+                let now_connected = snap.status.is_active();
                 let prev = was_connected.get_value();
                 was_connected.set_value(now_connected);
                 transport.set(snap.clone());
 
                 if !now_connected {
+                    identity.set(None);
                     bridge_caps.set(None);
                     bridge_demuxer.update_value(|d| d.reset());
                 } else if !prev && snap.transport != TransportKind::Demo {
@@ -133,7 +141,8 @@ pub fn App() -> impl IntoView {
                 if p.mode == TerminalMode::XiaoUartBridge && snap.transport != TransportKind::Demo {
                     bridge_demuxer.update_value(|d| {
                         d.feed(bytes, |pkt| match pkt {
-                            BridgePacket::Capabilities(caps) => {
+                            BridgePacket::Capabilities(id, caps) => {
+                                identity.set(Some(id));
                                 bridge_caps.set(Some(caps));
                             }
                             BridgePacket::UartRx(data) => {
@@ -147,14 +156,15 @@ pub fn App() -> impl IntoView {
             },
         );
         let p = prefs.get_untracked();
-        st.set_auto_connect(p.auto_connect, &p.serial);
+        st.set_auto_connect(p.auto_connect);
     });
 
-    let connected = Signal::derive(move || transport.get().status == ConnectionStatus::Connected);
+    let connected = Signal::derive(move || transport.get().status.is_active());
 
     let on_connect = Callback::new(move |_| {
-        let cfg = prefs.get_untracked().serial;
-        serial_transport.with_value(|t| t.connect(&cfg));
+        let p = prefs.get_untracked();
+        let cfg = to_core_serial_config(&p.serial, p.auto_connect);
+        serial_transport.with_value(|t| t.connect_usb_with_config(cfg));
     });
 
     let on_disconnect = Callback::new(move |_| {
@@ -168,7 +178,7 @@ pub fn App() -> impl IntoView {
     let send_bridge_uart_cfg = move || {
         let snap = transport.get_untracked();
         let p = prefs.get_untracked();
-        if snap.status == ConnectionStatus::Connected
+        if snap.status.is_active()
             && snap.transport != TransportKind::Demo
             && p.mode == TerminalMode::XiaoUartBridge
         {
@@ -192,12 +202,14 @@ pub fn App() -> impl IntoView {
         });
         bridge_demuxer.update_value(|d| d.reset());
         if mode == TerminalMode::DirectUsb {
+            identity.set(None);
             bridge_caps.set(None);
-            let cfg = prefs.get_untracked().serial;
-            serial_transport.with_value(|t| t.reconfigure(&cfg));
+            let p = prefs.get_untracked();
+            serial_transport
+                .with_value(|t| t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect)));
         } else {
             let snap = transport.get_untracked();
-            if snap.status == ConnectionStatus::Connected && snap.transport != TransportKind::Demo {
+            if snap.status.is_active() && snap.transport != TransportKind::Demo {
                 let p = prefs.get_untracked();
                 let mut init_bytes = build_get_caps_frame();
                 init_bytes.extend_from_slice(&build_uart_cfg_frame(
@@ -220,7 +232,7 @@ pub fn App() -> impl IntoView {
             save_preferences(p);
         });
         let p = prefs.get_untracked();
-        serial_transport.with_value(|t| t.set_auto_connect(p.auto_connect, &p.serial));
+        serial_transport.with_value(|t| t.set_auto_connect(p.auto_connect));
     });
 
     let on_baud_change = Callback::new(move |baud: u32| {
@@ -229,11 +241,11 @@ pub fn App() -> impl IntoView {
             save_preferences(p);
         });
         let p = prefs.get_untracked();
-        serial_transport.with_value(|t| t.set_auto_connect(p.auto_connect, &p.serial));
         if p.mode == TerminalMode::XiaoUartBridge {
             send_bridge_uart_cfg();
         } else {
-            serial_transport.with_value(|t| t.reconfigure(&p.serial));
+            serial_transport
+                .with_value(|t| t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect)));
         }
     });
 
@@ -359,7 +371,8 @@ pub fn App() -> impl IntoView {
         if p.mode == TerminalMode::XiaoUartBridge {
             send_bridge_uart_cfg();
         } else {
-            serial_transport.with_value(|t| t.reconfigure(&p.serial));
+            serial_transport
+                .with_value(|t| t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect)));
         }
     });
 
@@ -389,9 +402,11 @@ pub fn App() -> impl IntoView {
         });
 
     view! {
+        <HotWireTheme />
         <div class="app-shell">
             <TopToolbar
                 transport=transport
+                identity=identity
                 prefs=prefs
                 bridge_caps=bridge_caps
                 settings_open=settings_open
@@ -436,6 +451,7 @@ pub fn App() -> impl IntoView {
             <SettingsDrawer
                 open=settings_open
                 active_tab=settings_tab
+                identity=identity
                 prefs=prefs
                 editing_macro_idx=editing_macro_idx
                 serial_transport=serial_transport

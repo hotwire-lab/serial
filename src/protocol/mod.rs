@@ -1,45 +1,14 @@
+pub use hotwire_core::protocol::{
+    build_bootloader_frame, build_get_caps_frame, encode_frame, BoardIdentity,
+    TYPE_BOARD_CAPABILITIES as TYPE_BOARD_CAPS,
+};
+use hotwire_core::protocol::{FrameDemuxer, FrameRule};
 use serde::Deserialize;
 
-pub const SYNC_0: u8 = 0xaa;
-pub const SYNC_1: u8 = 0x55;
-
-pub const CMD_GET_CAPS: u8 = 0x02;
 pub const CMD_UART_CFG: u8 = 0x50;
 pub const CMD_UART_TX: u8 = 0x51;
-pub const CMD_BOOTLOADER: u8 = 0xf0;
 
-pub const TYPE_BOARD_CAPS: u8 = 0x83;
 pub const TYPE_UART_RX: u8 = 0x87;
-
-pub fn compute_xor(bytes: &[u8]) -> u8 {
-    let mut x = 0u8;
-    for &b in bytes {
-        x ^= b;
-    }
-    x
-}
-
-pub fn encode_frame(type_or_cmd: u8, payload: &[u8]) -> Vec<u8> {
-    let len = payload.len();
-    let mut frame = Vec::with_capacity(6 + len);
-    frame.push(SYNC_0);
-    frame.push(SYNC_1);
-    frame.push(type_or_cmd);
-    frame.push((len & 0xff) as u8);
-    frame.push(((len >> 8) & 0xff) as u8);
-    frame.extend_from_slice(payload);
-    let chk = compute_xor(&frame);
-    frame.push(chk);
-    frame
-}
-
-pub fn build_get_caps_frame() -> Vec<u8> {
-    encode_frame(CMD_GET_CAPS, &[])
-}
-
-pub fn build_bootloader_frame() -> Vec<u8> {
-    encode_frame(CMD_BOOTLOADER, &[0xb0, 0x07, 0x10, 0xad])
-}
 
 pub fn build_uart_cfg_frame(
     baud_rate: u32,
@@ -89,28 +58,14 @@ pub struct BridgeCapabilities {
     pub rx_pin: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BridgePacket {
-    Capabilities(BridgeCapabilities),
+    Capabilities(BoardIdentity, BridgeCapabilities),
     UartRx(Vec<u8>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RxState {
-    Sync0,
-    Sync1,
-    Type,
-    LenLo,
-    LenHi,
-    Payload,
-    Checksum,
-}
-
 pub struct BridgeDemuxer {
-    state: RxState,
-    type_id: u8,
-    len: usize,
-    payload: Vec<u8>,
+    inner: FrameDemuxer,
 }
 
 impl Default for BridgeDemuxer {
@@ -122,97 +77,34 @@ impl Default for BridgeDemuxer {
 impl BridgeDemuxer {
     pub fn new() -> Self {
         Self {
-            state: RxState::Sync0,
-            type_id: 0,
-            len: 0,
-            payload: Vec::with_capacity(1024),
+            inner: FrameDemuxer::new(vec![
+                FrameRule::board_capabilities(),
+                FrameRule::new(TYPE_UART_RX, 0, 4096),
+            ]),
         }
     }
 
     pub fn reset(&mut self) {
-        self.state = RxState::Sync0;
-        self.type_id = 0;
-        self.len = 0;
-        self.payload.clear();
+        self.inner.reset();
     }
 
     pub fn feed<F>(&mut self, bytes: &[u8], mut on_packet: F)
     where
         F: FnMut(BridgePacket),
     {
-        for &b in bytes {
-            match self.state {
-                RxState::Sync0 => {
-                    if b == SYNC_0 {
-                        self.state = RxState::Sync1;
+        self.inner.feed(bytes, |raw| match raw.type_id {
+            TYPE_BOARD_CAPS => {
+                if let Some(id) = BoardIdentity::decode_capabilities(raw.payload) {
+                    if let Ok(caps) = serde_json::from_value::<BridgeCapabilities>(id.raw.clone()) {
+                        on_packet(BridgePacket::Capabilities(id, caps));
                     }
-                }
-                RxState::Sync1 => {
-                    if b == SYNC_1 {
-                        self.state = RxState::Type;
-                    } else if b != SYNC_0 {
-                        self.state = RxState::Sync0;
-                    }
-                }
-                RxState::Type => {
-                    if b == TYPE_BOARD_CAPS || b == TYPE_UART_RX {
-                        self.type_id = b;
-                        self.state = RxState::LenLo;
-                    } else {
-                        self.state = RxState::Sync0;
-                    }
-                }
-                RxState::LenLo => {
-                    self.len = b as usize;
-                    self.state = RxState::LenHi;
-                }
-                RxState::LenHi => {
-                    self.len |= (b as usize) << 8;
-                    if self.len > 4096 {
-                        self.reset();
-                    } else if self.len == 0 {
-                        self.payload.clear();
-                        self.state = RxState::Checksum;
-                    } else {
-                        self.payload.clear();
-                        self.payload.reserve(self.len);
-                        self.state = RxState::Payload;
-                    }
-                }
-                RxState::Payload => {
-                    self.payload.push(b);
-                    if self.payload.len() >= self.len {
-                        self.state = RxState::Checksum;
-                    }
-                }
-                RxState::Checksum => {
-                    let hdr = [
-                        SYNC_0,
-                        SYNC_1,
-                        self.type_id,
-                        (self.len & 0xff) as u8,
-                        ((self.len >> 8) & 0xff) as u8,
-                    ];
-                    let expected = compute_xor(&hdr) ^ compute_xor(&self.payload);
-                    if b == expected {
-                        match self.type_id {
-                            TYPE_BOARD_CAPS => {
-                                if let Ok(text) = std::str::from_utf8(&self.payload) {
-                                    if let Ok(caps) = serde_json::from_str::<BridgeCapabilities>(text) {
-                                        on_packet(BridgePacket::Capabilities(caps));
-                                    }
-                                }
-                            }
-                            TYPE_UART_RX => {
-                                on_packet(BridgePacket::UartRx(self.payload.clone()));
-                            }
-                            _ => {}
-                        }
-                    }
-                    self.reset();
                 }
             }
-        }
+            TYPE_UART_RX => {
+                on_packet(BridgePacket::UartRx(raw.payload.to_vec()));
+            }
+            _ => {}
+        });
     }
 }
 
@@ -238,7 +130,7 @@ mod tests {
 
         assert_eq!(packets.len(), 2);
         match &packets[0] {
-            BridgePacket::Capabilities(c) => {
+            BridgePacket::Capabilities(_, c) => {
                 assert_eq!(c.board, "XIAO-ESP32-S3");
                 assert!(c.uart_bridge);
             }

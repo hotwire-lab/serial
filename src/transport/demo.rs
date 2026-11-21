@@ -70,3 +70,29 @@ impl DemoShell {
         }
     }
 }
+
+impl hotwire_core::transport::DemoBackend for DemoShell {
+    fn device_name(&self) -> &str {
+        "ESP32-S3 Demo"
+    }
+
+    fn vid_pid(&self) -> &str {
+        "DEMO:303A"
+    }
+
+    fn tick_interval_ms(&self) -> Option<i32> {
+        Some(2000)
+    }
+
+    fn on_start(&mut self) -> Vec<u8> {
+        self.banner()
+    }
+
+    fn handle_command(&mut self, bytes: &[u8]) -> Vec<u8> {
+        self.handle_input(bytes)
+    }
+
+    fn tick(&mut self) -> Option<Vec<u8>> {
+        self.tick_heartbeat()
+    }
+}
