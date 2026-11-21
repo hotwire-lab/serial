@@ -299,7 +299,19 @@ const state = {
 function notifyState(status, transport, deviceName, vidPid, portIdx, portCount, dtr, rts, errorMessage) {
   state.transport = transport;
   if (state.onState) {
-    state.onState(status, transport, deviceName ?? '', vidPid ?? '', portIdx ?? 0, portCount ?? 0, Boolean(dtr), Boolean(rts), errorMessage ?? '');
+    state.onState(
+      JSON.stringify({
+        status,
+        transport,
+        device_name: deviceName ?? '',
+        vid_pid: vidPid ?? '',
+        port_index: portIdx ?? 0,
+        port_count: portCount ?? 0,
+        dtr: Boolean(dtr),
+        rts: Boolean(rts),
+        error_message: errorMessage ?? '',
+      }),
+    );
   }
 }
 

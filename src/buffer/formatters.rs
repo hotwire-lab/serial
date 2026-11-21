@@ -9,6 +9,7 @@ pub enum ViewMode {
 }
 
 impl ViewMode {
+    #[allow(dead_code)]
     pub fn as_str(self) -> &'static str {
         match self {
             ViewMode::Ascii => "ASCII",
@@ -110,14 +111,9 @@ where
                 if chunk.direction == ChunkDirection::Tx {
                     out.push_str("TX> ");
                 }
-                at_line_start = false;
             }
             out.push(ch);
-            if ch == '\n' {
-                at_line_start = true;
-            } else {
-                at_line_start = false;
-            }
+            at_line_start = ch == '\n';
         }
     }
     out
@@ -129,7 +125,7 @@ mod tests {
 
     #[test]
     fn formats_ascii_hex_and_invisible_chars() {
-        let chunks = vec![
+        let chunks = [
             TerminalChunk {
                 data: b"OK\r\n".to_vec(),
                 timestamp_ms: 1234,

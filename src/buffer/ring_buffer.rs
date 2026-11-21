@@ -63,6 +63,7 @@ impl RingBuffer {
         self.total_bytes = 0;
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.chunks.len()
     }
@@ -91,10 +92,10 @@ mod tests {
         assert_eq!(rb.total_bytes(), 30);
         assert_eq!(rb.chunks().next().unwrap().timestamp_ms, 2);
 
-        let mut rb_bytes = RingBuffer::new(100, 15);
-        rb_bytes.push(vec![1; 10], 1, ChunkDirection::Rx);
-        rb_bytes.push(vec![2; 10], 2, ChunkDirection::Rx);
+        let mut rb_bytes = RingBuffer::new(100, 64);
+        rb_bytes.push(vec![1; 40], 1, ChunkDirection::Rx);
+        rb_bytes.push(vec![2; 40], 2, ChunkDirection::Rx);
         assert_eq!(rb_bytes.len(), 1);
-        assert_eq!(rb_bytes.total_bytes(), 10);
+        assert_eq!(rb_bytes.total_bytes(), 40);
     }
 }

@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -129,62 +130,65 @@ impl SerialTransport {
         *self.on_state.borrow_mut() = Some(Box::new(on_state));
         *self.on_bytes.borrow_mut() = Some(Box::new(on_bytes));
 
+        #[derive(Deserialize)]
+        struct JsStatePayload {
+            status: String,
+            transport: String,
+            device_name: String,
+            vid_pid: String,
+            port_index: u32,
+            port_count: u32,
+            dtr: bool,
+            rts: bool,
+            error_message: String,
+        }
+
         let snap_ref = self.snapshot.clone();
         let on_state_ref = self.on_state.clone();
-        #[allow(clippy::too_many_arguments)]
-        let state_cb = Closure::<
-            dyn FnMut(String, String, String, String, u32, u32, bool, bool, String),
-        >::new(
-            move |status_str: String,
-                  transport_str: String,
-                  device_name: String,
-                  vid_pid: String,
-                  port_index: u32,
-                  port_count: u32,
-                  dtr: bool,
-                  rts: bool,
-                  err_str: String| {
-                let error_message = if err_str.is_empty() {
-                    None
+        let state_cb = Closure::<dyn FnMut(String)>::new(move |json_str: String| {
+            let Ok(p) = serde_json::from_str::<JsStatePayload>(&json_str) else {
+                return;
+            };
+            let error_message = if p.error_message.is_empty() {
+                None
+            } else {
+                Some(p.error_message)
+            };
+            let next = TransportSnapshot {
+                status: match p.status.as_str() {
+                    "connecting" => ConnectionStatus::Connecting,
+                    "connected" => ConnectionStatus::Connected,
+                    _ => ConnectionStatus::Waiting,
+                },
+                transport: match p.transport.as_str() {
+                    "webserial" => TransportKind::WebSerial,
+                    "webusb" => TransportKind::WebUsb,
+                    _ => TransportKind::None,
+                },
+                device_name: if p.device_name.is_empty() {
+                    "Waiting for USB...".to_string()
                 } else {
-                    Some(err_str)
-                };
-                let next = TransportSnapshot {
-                    status: match status_str.as_str() {
-                        "connecting" => ConnectionStatus::Connecting,
-                        "connected" => ConnectionStatus::Connected,
-                        _ => ConnectionStatus::Waiting,
-                    },
-                    transport: match transport_str.as_str() {
-                        "webserial" => TransportKind::WebSerial,
-                        "webusb" => TransportKind::WebUsb,
-                        _ => TransportKind::None,
-                    },
-                    device_name: if device_name.is_empty() {
-                        "Waiting for USB...".to_string()
-                    } else {
-                        device_name
-                    },
-                    vid_pid,
-                    port_index,
-                    port_count,
-                    dtr,
-                    rts,
-                    error_message,
-                };
+                    p.device_name
+                },
+                vid_pid: p.vid_pid,
+                port_index: p.port_index,
+                port_count: p.port_count,
+                dtr: p.dtr,
+                rts: p.rts,
+                error_message,
+            };
 
-                if snap_ref.borrow().transport == TransportKind::Demo
-                    && next.status != ConnectionStatus::Connected
-                {
-                    return;
-                }
+            if snap_ref.borrow().transport == TransportKind::Demo
+                && next.status != ConnectionStatus::Connected
+            {
+                return;
+            }
 
-                *snap_ref.borrow_mut() = next.clone();
-                if let Some(cb) = on_state_ref.borrow_mut().as_mut() {
-                    cb(next);
-                }
-            },
-        );
+            *snap_ref.borrow_mut() = next.clone();
+            if let Some(cb) = on_state_ref.borrow_mut().as_mut() {
+                cb(next);
+            }
+        });
 
         let on_bytes_ref = self.on_bytes.clone();
         let bytes_cb = Closure::<dyn FnMut(js_sys::Uint8Array)>::new(move |arr: js_sys::Uint8Array| {
