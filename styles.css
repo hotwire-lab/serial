@@ -1,14 +1,5 @@
+/* App-specific styles (shared theme palette, toolbar, buttons & flasher come from hotwire-core) */
 :root {
-  --bg: #0d1117;
-  --surface: #131922;
-  --surface-2: #1a2230;
-  --border: #283244;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #38bdf8;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --ok: #4ade80;
   color-scheme: dark;
 }
 
@@ -35,114 +26,15 @@ html, body {
   height: 100dvh;
 }
 
-/* Top Toolbar (Unified HotWire Instrument Chrome) */
-.top-toolbar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 12px;
-}
-
-.toolbar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.brand-cluster {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.brand-logo {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: #0a0f17;
-  border: 1px solid var(--border);
-  display: grid;
-  place-items: center;
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
-}
-
-.brand-title {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.2px;
-}
-
-.brand-badge {
-  font-size: 10px;
-  color: var(--muted);
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  font-size: 12px;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.status-connected .status-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-.status-connecting .status-dot { background: var(--warn); }
-
-.status-vidpid {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.control-spacer {
-  flex: 1;
-}
-
-.toolbar-actions, .inline-controls {
+.inline-controls {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-/* Unified Buttons & Controls */
-.btn {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text);
-  padding: 5px 11px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-}
-.btn:hover:not(:disabled) { border-color: #4b5d7a; background: #222d40; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-sm { padding: 4px 8px; font-size: 11px; }
 .btn-xs { padding: 2px 7px; font-size: 11px; border-radius: 4px; }
-.btn-primary { background: #0284c7; border-color: #0ea5e9; color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #0369a1; }
-.btn-accent { background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.45); color: #7dd3fc; }
-.btn-accent.active { background: #0284c7; color: #fff; }
 .btn-secondary.active { background: #222d40; border-color: var(--accent); }
-.btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
-.btn-ghost:hover { color: var(--text); background: var(--surface-2); }
 
 .ctrl-select {
   background: var(--surface-2);
@@ -377,52 +269,6 @@ html, body {
 
 .bridge-flags {
   margin-top: 10px;
-}
-
-.cmd-input-sm {
-  width: 96px;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  margin-top: 10px;
-  border-radius: 999px;
-  background: var(--bg-app);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--green));
-  transition: width 150ms ease;
-}
-
-.flash-log {
-  margin-top: 10px;
-  padding: 8px 10px;
-  max-height: 140px;
-  overflow-y: auto;
-  border-radius: 6px;
-  background: var(--bg-app);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  font-size: 11px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.flash-error {
-  margin-top: 8px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  color: var(--red);
-  font-size: 12px;
 }
 
 .flash-warning {
