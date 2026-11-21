@@ -8,10 +8,16 @@ use crate::components::bottom_command_bar::BottomCommandBar;
 use crate::components::settings_drawer::SettingsDrawer;
 use crate::components::terminal_viewport::TerminalViewport;
 use crate::components::top_toolbar::TopToolbar;
-use crate::storage::preferences::{
-    load_preferences, save_preferences, LineEnding,
+use crate::protocol::{
+    build_get_caps_frame, build_uart_cfg_frame, build_uart_tx_frames, BridgeCapabilities,
+    BridgeDemuxer, BridgePacket,
 };
-use crate::transport::serial::{ConnectionStatus, SerialTransport, TransportSnapshot};
+use crate::storage::preferences::{
+    load_preferences, save_preferences, LineEnding, TerminalMode,
+};
+use crate::transport::serial::{
+    ConnectionStatus, SerialTransport, TransportKind, TransportSnapshot,
+};
 
 fn now_ms() -> u64 {
     js_sys::Date::now() as u64
@@ -63,7 +69,11 @@ pub fn App() -> impl IntoView {
     let total_bytes = RwSignal::new(0usize);
     let auto_scroll = RwSignal::new(true);
     let settings_open = RwSignal::new(false);
+    let settings_tab = RwSignal::new("settings".to_string());
     let editing_macro_idx = RwSignal::new(None::<usize>);
+    let bridge_caps = RwSignal::new(None::<BridgeCapabilities>);
+    let bridge_demuxer = StoredValue::new_local(BridgeDemuxer::new());
+    let was_connected = StoredValue::new_local(false);
 
     let refresh_view = move || {
         let p = prefs.get_untracked();
@@ -91,10 +101,49 @@ pub fn App() -> impl IntoView {
     serial_transport.with_value(|st| {
         st.init(
             move |snap: TransportSnapshot| {
-                transport.set(snap);
+                let now_connected = snap.status == ConnectionStatus::Connected;
+                let prev = was_connected.get_value();
+                was_connected.set_value(now_connected);
+                transport.set(snap.clone());
+
+                if !now_connected {
+                    bridge_caps.set(None);
+                    bridge_demuxer.update_value(|d| d.reset());
+                } else if !prev && snap.transport != TransportKind::Demo {
+                    let p = prefs.get_untracked();
+                    if p.mode == TerminalMode::XiaoUartBridge {
+                        bridge_demuxer.update_value(|d| d.reset());
+                        let mut init_bytes = build_get_caps_frame();
+                        init_bytes.extend_from_slice(&build_uart_cfg_frame(
+                            p.serial.baud_rate,
+                            p.serial.data_bits,
+                            p.serial.stop_bits,
+                            p.serial.parity,
+                            p.bridge_swap_pins,
+                            p.bridge_invert_rx,
+                            p.bridge_invert_tx,
+                        ));
+                        serial_transport.with_value(|t| t.send_bytes(&init_bytes));
+                    }
+                }
             },
             move |bytes: &[u8]| {
-                push_chunk(bytes, ChunkDirection::Rx);
+                let p = prefs.get_untracked();
+                let snap = transport.get_untracked();
+                if p.mode == TerminalMode::XiaoUartBridge && snap.transport != TransportKind::Demo {
+                    bridge_demuxer.update_value(|d| {
+                        d.feed(bytes, |pkt| match pkt {
+                            BridgePacket::Capabilities(caps) => {
+                                bridge_caps.set(Some(caps));
+                            }
+                            BridgePacket::UartRx(data) => {
+                                push_chunk(&data, ChunkDirection::Rx);
+                            }
+                        });
+                    });
+                } else {
+                    push_chunk(bytes, ChunkDirection::Rx);
+                }
             },
         );
     });
@@ -114,13 +163,66 @@ pub fn App() -> impl IntoView {
         serial_transport.with_value(|t| t.start_demo());
     });
 
+    let send_bridge_uart_cfg = move || {
+        let snap = transport.get_untracked();
+        let p = prefs.get_untracked();
+        if snap.status == ConnectionStatus::Connected
+            && snap.transport != TransportKind::Demo
+            && p.mode == TerminalMode::XiaoUartBridge
+        {
+            let frame = build_uart_cfg_frame(
+                p.serial.baud_rate,
+                p.serial.data_bits,
+                p.serial.stop_bits,
+                p.serial.parity,
+                p.bridge_swap_pins,
+                p.bridge_invert_rx,
+                p.bridge_invert_tx,
+            );
+            serial_transport.with_value(|t| t.send_bytes(&frame));
+        }
+    };
+
+    let on_mode_change = Callback::new(move |mode: TerminalMode| {
+        prefs.update(|p| {
+            p.mode = mode;
+            save_preferences(p);
+        });
+        bridge_demuxer.update_value(|d| d.reset());
+        if mode == TerminalMode::DirectUsb {
+            bridge_caps.set(None);
+            let cfg = prefs.get_untracked().serial;
+            serial_transport.with_value(|t| t.reconfigure(&cfg));
+        } else {
+            let snap = transport.get_untracked();
+            if snap.status == ConnectionStatus::Connected && snap.transport != TransportKind::Demo {
+                let p = prefs.get_untracked();
+                let mut init_bytes = build_get_caps_frame();
+                init_bytes.extend_from_slice(&build_uart_cfg_frame(
+                    p.serial.baud_rate,
+                    p.serial.data_bits,
+                    p.serial.stop_bits,
+                    p.serial.parity,
+                    p.bridge_swap_pins,
+                    p.bridge_invert_rx,
+                    p.bridge_invert_tx,
+                ));
+                serial_transport.with_value(|t| t.send_bytes(&init_bytes));
+            }
+        }
+    });
+
     let on_baud_change = Callback::new(move |baud: u32| {
         prefs.update(|p| {
             p.serial.baud_rate = baud;
             save_preferences(p);
         });
-        let cfg = prefs.get_untracked().serial;
-        serial_transport.with_value(|t| t.reconfigure(&cfg));
+        let p = prefs.get_untracked();
+        if p.mode == TerminalMode::XiaoUartBridge {
+            send_bridge_uart_cfg();
+        } else {
+            serial_transport.with_value(|t| t.reconfigure(&p.serial));
+        }
     });
 
     let on_toggle_dtr = Callback::new(move |_| {
@@ -183,17 +285,28 @@ pub fn App() -> impl IntoView {
         download_text_file("hotwire-serial-log.txt", &txt);
     });
 
+    let send_tx = move |bytes: &[u8]| {
+        let p = prefs.get_untracked();
+        let snap = transport.get_untracked();
+        if p.mode == TerminalMode::XiaoUartBridge && snap.transport != TransportKind::Demo {
+            let framed = build_uart_tx_frames(bytes);
+            serial_transport.with_value(|t| t.send_bytes(&framed));
+        } else {
+            serial_transport.with_value(|t| t.send_bytes(bytes));
+        }
+    };
+
     let on_send_payload = Callback::new(move |(payload, le): (String, LineEnding)| {
         let full = format!("{payload}{}", le.suffix());
         let bytes = full.as_bytes();
         if prefs.get_untracked().local_echo {
             push_chunk(bytes, ChunkDirection::Tx);
         }
-        serial_transport.with_value(|t| t.send_bytes(bytes));
+        send_tx(bytes);
     });
 
     let on_send_raw = Callback::new(move |bytes: Vec<u8>| {
-        serial_transport.with_value(|t| t.send_bytes(&bytes));
+        send_tx(&bytes);
     });
 
     let on_set_line_ending = Callback::new(move |le: LineEnding| {
@@ -216,6 +329,12 @@ pub fn App() -> impl IntoView {
 
     let on_close_settings = Callback::new(move |_| settings_open.set(false));
 
+    let on_open_flasher = Callback::new(move |_| {
+        editing_macro_idx.set(None);
+        settings_tab.set("flasher".to_string());
+        settings_open.set(true);
+    });
+
     let on_update_serial_cfg = Callback::new(move |(db, sb, par, fc): (u8, u8, u8, u8)| {
         prefs.update(|p| {
             p.serial.data_bits = db;
@@ -224,9 +343,24 @@ pub fn App() -> impl IntoView {
             p.serial.flow_control = fc;
             save_preferences(p);
         });
-        let cfg = prefs.get_untracked().serial;
-        serial_transport.with_value(|t| t.reconfigure(&cfg));
+        let p = prefs.get_untracked();
+        if p.mode == TerminalMode::XiaoUartBridge {
+            send_bridge_uart_cfg();
+        } else {
+            serial_transport.with_value(|t| t.reconfigure(&p.serial));
+        }
     });
+
+    let on_update_bridge_flags =
+        Callback::new(move |(swap, inv_rx, inv_tx): (bool, bool, bool)| {
+            prefs.update(|p| {
+                p.bridge_swap_pins = swap;
+                p.bridge_invert_rx = inv_rx;
+                p.bridge_invert_tx = inv_tx;
+                save_preferences(p);
+            });
+            send_bridge_uart_cfg();
+        });
 
     let on_save_macro =
         Callback::new(move |(idx, label, payload, le): (usize, String, String, LineEnding)| {
@@ -247,15 +381,18 @@ pub fn App() -> impl IntoView {
             <TopToolbar
                 transport=transport
                 prefs=prefs
+                bridge_caps=bridge_caps
                 settings_open=settings_open
                 on_connect=on_connect
                 on_disconnect=on_disconnect
                 on_start_demo=on_start_demo
+                on_mode_change=on_mode_change
                 on_baud_change=on_baud_change
                 on_toggle_dtr=on_toggle_dtr
                 on_toggle_rts=on_toggle_rts
                 on_pulse_rst=on_pulse_rst
                 on_switch_port=on_switch_port
+                on_open_flasher=on_open_flasher
             />
 
             <main class="serial-main">
@@ -285,10 +422,13 @@ pub fn App() -> impl IntoView {
 
             <SettingsDrawer
                 open=settings_open
+                active_tab=settings_tab
                 prefs=prefs
                 editing_macro_idx=editing_macro_idx
+                serial_transport=serial_transport
                 on_close=on_close_settings
                 on_update_serial_cfg=on_update_serial_cfg
+                on_update_bridge_flags=on_update_bridge_flags
                 on_save_macro=on_save_macro
             />
         </div>

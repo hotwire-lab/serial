@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
-use crate::storage::preferences::{HotWirePreferences, BAUD_RATES};
+use crate::protocol::BridgeCapabilities;
+use crate::storage::preferences::{HotWirePreferences, TerminalMode, BAUD_RATES};
 use crate::transport::serial::{ConnectionStatus, TransportSnapshot};
 
 #[component]
@@ -8,15 +9,18 @@ use crate::transport::serial::{ConnectionStatus, TransportSnapshot};
 pub fn TopToolbar(
     transport: RwSignal<TransportSnapshot>,
     prefs: RwSignal<HotWirePreferences>,
+    bridge_caps: RwSignal<Option<BridgeCapabilities>>,
     settings_open: RwSignal<bool>,
     on_connect: Callback<()>,
     on_disconnect: Callback<()>,
     on_start_demo: Callback<()>,
+    on_mode_change: Callback<TerminalMode>,
     on_baud_change: Callback<u32>,
     on_toggle_dtr: Callback<()>,
     on_toggle_rts: Callback<()>,
     on_pulse_rst: Callback<()>,
     on_switch_port: Callback<u32>,
+    on_open_flasher: Callback<()>,
 ) -> impl IntoView {
     let is_connected = move || transport.get().status == ConnectionStatus::Connected;
     let is_connecting = move || transport.get().status == ConnectionStatus::Connecting;
@@ -68,11 +72,36 @@ pub fn TopToolbar(
                             None
                         }
                     }}
+                    {move || {
+                        if prefs.get().mode == TerminalMode::XiaoUartBridge {
+                            let label = bridge_caps
+                                .get()
+                                .map(|c| format!("UART {}:{}", c.tx_pin, c.rx_pin))
+                                .unwrap_or_else(|| "D6/D7 Bridge".to_string());
+                            Some(view! { <span class="status-vidpid">{label}</span> })
+                        } else {
+                            None
+                        }
+                    }}
                 </div>
 
                 <div class="control-spacer" />
 
                 <div class="toolbar-actions">
+                    <select
+                        class="ctrl-select"
+                        aria-label="Serial mode"
+                        title="Select Direct USB serial or XIAO ESP32 UART Bridge (D6/D7)"
+                        prop:value=move || prefs.get().mode.as_str()
+                        on:change=move |ev| {
+                            let mode = TerminalMode::from_str(&event_target_value(&ev));
+                            on_mode_change.run(mode);
+                        }
+                    >
+                        <option value="direct">"Direct USB"</option>
+                        <option value="bridge">"XIAO UART (D6/D7)"</option>
+                    </select>
+
                     <select
                         class="ctrl-select"
                         aria-label="Baud rate"
@@ -181,9 +210,17 @@ pub fn TopToolbar(
 
                     <button
                         type="button"
+                        class="btn btn-flash"
+                        on:click=move |_| on_open_flasher.run(())
+                        title="Flash XIAO ESP32-S3 / C6 UART Bridge Firmware"
+                    >
+                        "⚡ Flasher"
+                    </button>
+                    <button
+                        type="button"
                         class=move || if settings_open.get() { "btn btn-secondary active" } else { "btn btn-secondary" }
                         on:click=move |_| settings_open.update(|v| *v = !*v)
-                        title="Serial Framing & Macro Editor"
+                        title="Serial Framing, Bridge & Macro Editor"
                     >
                         "⚙ Settings"
                     </button>

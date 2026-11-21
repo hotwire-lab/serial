@@ -68,9 +68,36 @@ impl Default for SerialPortConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TerminalMode {
+    DirectUsb,
+    XiaoUartBridge,
+}
+
+impl TerminalMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TerminalMode::DirectUsb => "direct",
+            TerminalMode::XiaoUartBridge => "bridge",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        if s == "bridge" {
+            TerminalMode::XiaoUartBridge
+        } else {
+            TerminalMode::DirectUsb
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HotWirePreferences {
+    pub mode: TerminalMode,
     pub serial: SerialPortConfig,
+    pub bridge_swap_pins: bool,
+    pub bridge_invert_rx: bool,
+    pub bridge_invert_tx: bool,
     pub line_ending: LineEnding,
     pub local_echo: bool,
     pub view_mode: ViewMode,
@@ -83,7 +110,11 @@ pub struct HotWirePreferences {
 impl Default for HotWirePreferences {
     fn default() -> Self {
         Self {
+            mode: TerminalMode::DirectUsb,
             serial: SerialPortConfig::default(),
+            bridge_swap_pins: false,
+            bridge_invert_rx: false,
+            bridge_invert_tx: false,
             line_ending: LineEnding::Crlf,
             local_echo: true,
             view_mode: ViewMode::Ascii,

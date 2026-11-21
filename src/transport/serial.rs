@@ -5,6 +5,7 @@ use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::protocol::build_bootloader_frame;
 use crate::storage::preferences::SerialPortConfig;
 use crate::transport::demo::DemoShell;
 
@@ -84,6 +85,15 @@ extern "C" {
         flow_control: u8,
     ) -> js_sys::Promise;
     fn js_switch_usb_port(port_idx: u32) -> js_sys::Promise;
+    fn js_flash_firmware(
+        board_id: &str,
+        force_other_port: bool,
+        flash_offset: &str,
+        custom_file: Option<&web_sys::File>,
+        bootloader_cmd: &[u8],
+        on_log: &js_sys::Function,
+        on_progress: &js_sys::Function,
+    ) -> js_sys::Promise;
 }
 
 type StateCallback = Rc<RefCell<Option<Box<dyn FnMut(TransportSnapshot)>>>>;
@@ -380,5 +390,46 @@ impl SerialTransport {
         spawn_local(async move {
             let _ = wasm_bindgen_futures::JsFuture::from(js_switch_usb_port(port_idx)).await;
         });
+    }
+
+    pub async fn flash_firmware<FL, FP>(
+        &self,
+        board_id: &str,
+        force_other_port: bool,
+        flash_offset: &str,
+        custom_file: Option<&web_sys::File>,
+        mut on_log: FL,
+        mut on_progress: FP,
+    ) -> Result<(), String>
+    where
+        FL: FnMut(String) + 'static,
+        FP: FnMut(u32) + 'static,
+    {
+        self.stop_demo_timer();
+        let log_cb = Closure::<dyn FnMut(String)>::new(move |msg: String| on_log(msg));
+        let prog_cb = Closure::<dyn FnMut(u32)>::new(move |pct: u32| on_progress(pct));
+        let boot_cmd = build_bootloader_frame();
+
+        let promise = js_flash_firmware(
+            board_id,
+            force_other_port,
+            flash_offset,
+            custom_file,
+            &boot_cmd,
+            log_cb.as_ref().unchecked_ref(),
+            prog_cb.as_ref().unchecked_ref(),
+        );
+        let res = wasm_bindgen_futures::JsFuture::from(promise).await;
+        drop(log_cb);
+        drop(prog_cb);
+        res.map(|_| ()).map_err(|err| {
+            err.as_string()
+                .or_else(|| {
+                    js_sys::Reflect::get(&err, &JsValue::from_str("message"))
+                        .ok()
+                        .and_then(|v| v.as_string())
+                })
+                .unwrap_or_else(|| "Firmware flashing failed".to_string())
+        })
     }
 }

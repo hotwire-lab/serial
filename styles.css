@@ -353,3 +353,110 @@ html, body {
   border-radius: 6px;
   border: 1px solid var(--border);
 }
+
+/* XIAO UART Bridge & Web Flasher */
+.btn-flash {
+  background: rgba(251, 191, 36, 0.14);
+  color: var(--amber);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.btn-flash:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.24);
+}
+.btn-flash.active {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: var(--amber);
+}
+
+.drawer-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bridge-flags {
+  margin-top: 10px;
+}
+
+.cmd-input-sm {
+  width: 96px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  transition: width 150ms ease;
+}
+
+.flash-log {
+  margin-top: 10px;
+  padding: 8px 10px;
+  max-height: 140px;
+  overflow-y: auto;
+  border-radius: 6px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.flash-error {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: var(--red);
+  font-size: 12px;
+}
+
+.flash-warning {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: var(--amber);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.pin-table th,
+.pin-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.pin-table th {
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+.pin-table td {
+  color: var(--text-main);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}

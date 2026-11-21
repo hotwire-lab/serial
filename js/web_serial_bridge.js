@@ -594,3 +594,228 @@ export async function js_switch_usb_port(portIdx) {
     await openWebUsb(dev, state.cfg, portIdx);
   }
 }
+
+export async function js_flash_firmware(
+  boardId,
+  forceOtherPort,
+  flashOffset,
+  customFile,
+  bootloaderCmd,
+  onLog,
+  onProgress,
+) {
+  if (typeof navigator === 'undefined' || (!navigator.serial && !navigator.usb)) {
+    throw new Error('Web Serial or WebUSB API is required for browser firmware flashing.');
+  }
+
+  const profiles = {
+    esp32s3: {
+      label: 'Seeed Studio XIAO ESP32-S3',
+      prefix: 'HotWire_UART_XIAO_ESP32S3.ino',
+      bootloaderOffset: 0x0,
+      flashSize: '8MB',
+    },
+    esp32c6: {
+      label: 'Seeed Studio XIAO ESP32-C6',
+      prefix: 'HotWire_UART_XIAO_ESP32C6.ino',
+      bootloaderOffset: 0x0,
+      flashSize: '4MB',
+    },
+  };
+  const profile = profiles[boardId] ?? profiles.esp32s3;
+
+  const backend = preferredBackend();
+  const useWebUsb =
+    state.transport === 'webusb' ||
+    (state.transport !== 'webserial' && backend === 'webusb');
+
+  let port = null;
+  let webUsbDevice = null;
+
+  onLog(`[1/4] Preparing to flash ${profile.label}...`);
+  if (useWebUsb && navigator.usb) {
+    const activeUsb = forceOtherPort ? null : state.webUsbDevice;
+    if (!forceOtherPort && state.transport === 'webusb' && activeUsb) {
+      onLog('Entering ROM bootloader & closing WebUSB transport...');
+      try { await js_write_serial(bootloaderCmd); } catch {}
+      await new Promise((r) => setTimeout(r, 250));
+      state.epoch += 1;
+      await closeAll();
+      webUsbDevice = activeUsb;
+    } else {
+      onLog('Select the XIAO ESP32 USB-JTAG / CDC device in the browser WebUSB prompt...');
+      webUsbDevice = await navigator.usb.requestDevice({ filters: WEBUSB_FILTERS });
+    }
+    // Lightweight WebUSB wrapper for flashing
+    const cfg = webUsbDevice.configuration ?? webUsbDevice.configurations?.[0];
+    const ports = enumerateWebUsbPorts(webUsbDevice);
+    const desc = ports[0];
+    if (!desc) throw new Error('No CDC bulk endpoints found on USB device.');
+    port = {
+      readable: null,
+      writable: null,
+      open: async () => {
+        if (!webUsbDevice.opened) await webUsbDevice.open();
+        if (!webUsbDevice.configuration && cfg) await webUsbDevice.selectConfiguration(cfg.configurationValue);
+        await webUsbDevice.claimInterface(desc.dataInterfaceNumber);
+        if (desc.controlInterfaceNumber !== desc.dataInterfaceNumber) {
+          try { await webUsbDevice.claimInterface(desc.controlInterfaceNumber); } catch {}
+        }
+        let running = true;
+        port.readable = new ReadableStream({
+          pull: async (ctrl) => {
+            while (running && webUsbDevice.opened) {
+              const r = await webUsbDevice.transferIn(desc.inEndpointNumber, Math.max(64, desc.inPacketSize));
+              if (r.status === 'ok' && r.data?.byteLength > 0) {
+                ctrl.enqueue(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength));
+                return;
+              }
+            }
+            try { ctrl.close(); } catch {}
+          },
+          cancel: () => { running = false; },
+        });
+        port.writable = new WritableStream({
+          write: async (chunk) => {
+            await webUsbDevice.transferOut(desc.outEndpointNumber, chunk);
+          },
+        });
+      },
+      close: async () => {
+        try { await webUsbDevice.releaseInterface(desc.dataInterfaceNumber); } catch {}
+        try { await webUsbDevice.close(); } catch {}
+      },
+      setSignals: async (sig) => {
+        await webUsbDevice.controlTransferOut({
+          requestType: 'class', recipient: 'interface', request: 0x22,
+          value: (sig.dataTerminalReady ? 1 : 0) | (sig.requestToSend ? 2 : 0),
+          index: desc.controlInterfaceNumber,
+        });
+      },
+      getInfo: () => ({ usbVendorId: webUsbDevice.vendorId, usbProductId: webUsbDevice.productId }),
+    };
+  } else if (navigator.serial) {
+    let serialPort = forceOtherPort ? null : state.webSerialPort;
+    if (!forceOtherPort && state.transport === 'webserial' && serialPort) {
+      onLog('Sending bootloader entry command & closing serial transport...');
+      try { await js_write_serial(bootloaderCmd); } catch {}
+      await new Promise((r) => setTimeout(r, 250));
+      state.epoch += 1;
+      await closeAll();
+    } else {
+      onLog('Select the XIAO ESP32 USB-JTAG / CDC COM port in the browser prompt...');
+      serialPort = await navigator.serial.requestPort();
+    }
+    port = serialPort;
+  }
+
+  if (!port) throw new Error('No serial or USB port selected.');
+
+  const fileArray = [];
+  if (customFile) {
+    onLog(`Reading selected file: ${customFile.name}...`);
+    const buf = new Uint8Array(await customFile.arrayBuffer());
+    const addr = flashOffset === '0x0' ? 0x0 : 0x10000;
+    fileArray.push({ data: buf, address: addr });
+  } else if (flashOffset === 'full') {
+    onLog('Downloading bundled UART Bridge firmware images...');
+    const items = [
+      { label: 'bootloader', address: profile.bootloaderOffset, url: `./firmware/${profile.prefix}.bootloader.bin` },
+      { label: 'partitions', address: 0x8000, url: `./firmware/${profile.prefix}.partitions.bin` },
+      { label: 'boot_app0', address: 0xe000, url: `./firmware/boot_app0.bin` },
+      { label: 'firmware', address: 0x10000, url: `./firmware/${profile.prefix}.bin` },
+    ];
+    for (const item of items) {
+      const resp = await fetch(item.url);
+      if (!resp.ok) throw new Error(`Missing binary ${item.url} (${resp.status}).`);
+      const buf = new Uint8Array(await resp.arrayBuffer());
+      onLog(`Loaded ${item.label} @ 0x${item.address.toString(16)} (${buf.byteLength} bytes)`);
+      fileArray.push({ data: buf, address: item.address });
+    }
+  } else {
+    const appUrl = `./firmware/${profile.prefix}.bin`;
+    const resp = await fetch(appUrl);
+    if (!resp.ok) throw new Error(`Missing binary ${appUrl} (${resp.status}).`);
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    const addr = flashOffset === '0x0' ? 0x0 : 0x10000;
+    fileArray.push({ data: buf, address: addr });
+  }
+
+  onLog('[2/4] Connecting to ROM bootloader...');
+  const { ESPLoader, Transport } = await import('https://esm.sh/esptool-js@0.7.1');
+  const espTransport = new Transport(port, false);
+  const esploader = new ESPLoader({
+    transport: espTransport,
+    baudrate: 460800,
+    romBaudrate: 115200,
+    terminal: {
+      clean: () => {},
+      writeLine: (line) => onLog(line),
+      write: (data) => {
+        const cleaned = data.replace(/\r/g, '').trim();
+        if (cleaned) onLog(cleaned);
+      },
+    },
+  });
+
+  let chip = '';
+  try {
+    chip = await esploader.main('default_reset');
+  } catch {
+    onLog('Default reset sync timed out; retrying direct no_reset sync...');
+    try { await espTransport.disconnect(); } catch {}
+    await new Promise((r) => setTimeout(r, 150));
+    chip = await esploader.main('no_reset');
+  }
+  onLog(`Connected to bootloader chip: ${chip || profile.label}`);
+
+  onLog('[3/4] Writing flash memory...');
+  const totalBytes = fileArray.reduce((acc, f) => acc + f.data.byteLength, 0);
+  const isBundledFull = !customFile && flashOffset === 'full';
+
+  await esploader.writeFlash({
+    fileArray,
+    flashSize: profile.flashSize,
+    flashMode: isBundledFull ? 'dio' : 'keep',
+    flashFreq: isBundledFull ? '80m' : 'keep',
+    eraseAll: false,
+    compress: true,
+    reportProgress: (fileIndex, written, total) => {
+      const prev = fileArray.slice(0, fileIndex).reduce((acc, f) => acc + f.data.byteLength, 0);
+      const cur = fileArray[fileIndex]
+        ? fileArray[fileIndex].data.byteLength * (written / Math.max(1, total))
+        : written;
+      const ratio = totalBytes > 0 ? (prev + cur) / totalBytes : written / Math.max(1, total);
+      onProgress(Math.min(100, Math.round(ratio * 100)));
+    },
+  });
+
+  onLog('[4/4] Flashing complete! Triggering reset...');
+  let watchdogTriggered = false;
+  if (boardId === 'esp32s3') {
+    try {
+      await esploader.writeReg(0x6000812c, 0);
+      await esploader.writeReg(0x600080b0, 0x50d83aa1);
+      await esploader.writeReg(0x6000809c, 2000);
+      const curCfg0 = await esploader.readReg(0x60008098);
+      const nextCfg0 = ((curCfg0 & 0x0fe3ffff) | 0xb01c0000) >>> 0;
+      await esploader.writeReg(0x60008098, nextCfg0);
+      await esploader.writeReg(0x600080a8, 0x80000000);
+      watchdogTriggered = true;
+      await new Promise((r) => setTimeout(r, 150));
+    } catch {}
+  }
+  if (!watchdogTriggered) {
+    try { await esploader.after('hard_reset'); } catch {}
+  }
+  try { await espTransport.disconnect(); } catch {}
+
+  onProgress(100);
+  onLog('Flash complete! Reconnecting in XIAO UART Bridge mode...');
+  await new Promise((r) => setTimeout(r, 1200));
+  if (webUsbDevice) {
+    await openWebUsb(webUsbDevice, state.cfg, 0);
+  } else {
+    await openWebSerial(port, state.cfg);
+  }
+}

@@ -1,6 +1,7 @@
 mod app;
 mod buffer;
 mod components;
+mod protocol;
 mod storage;
 mod transport;
 
