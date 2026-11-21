@@ -1,5 +1,6 @@
-use hotwire_core::protocol::BoardIdentity;
-use hotwire_core::ui::HotWireTheme;
+use hotwire_core::protocol::{BoardIdentity, FirmwareMismatch, ToolId};
+use hotwire_core::transport::HandshakeGuard;
+use hotwire_core::ui::{FirmwareMismatchModal, HotWireTheme};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -69,6 +70,9 @@ pub fn App() -> impl IntoView {
     ));
     let transport = RwSignal::new(serial_transport.with_value(|t| t.snapshot()));
     let identity = RwSignal::new(None::<BoardIdentity>);
+    let mismatch = RwSignal::new(None::<FirmwareMismatch>);
+    let flasher_mismatch = RwSignal::new(None::<FirmwareMismatch>);
+    let handshake_guard = StoredValue::new_local(HandshakeGuard::new(ToolId::SerialTerminal));
     let prefs = RwSignal::new(initial_prefs);
 
     let ring_buffer = StoredValue::new_local(RingBuffer::default());
@@ -109,17 +113,29 @@ pub fn App() -> impl IntoView {
         st.init(
             move |snap: TransportSnapshot| {
                 let now_connected = snap.status.is_active();
+                let is_usb = snap.status.is_usb_connected();
+                let dev_name = snap.device_name.clone();
                 let prev = was_connected.get_value();
                 was_connected.set_value(now_connected);
                 transport.set(snap.clone());
 
                 if !now_connected {
+                    handshake_guard.update_value(|g| g.cancel());
                     identity.set(None);
                     bridge_caps.set(None);
                     bridge_demuxer.update_value(|d| d.reset());
-                } else if !prev && snap.transport != TransportKind::Demo {
+                } else if !prev && is_usb {
                     let p = prefs.get_untracked();
                     if p.mode == TerminalMode::XiaoUartBridge {
+                        mismatch.set(None);
+                        flasher_mismatch.set(None);
+                        handshake_guard.update_value(|g| {
+                            g.arm_timeout(dev_name, 3500, move |mm| {
+                                mismatch.set(Some(mm.clone()));
+                                flasher_mismatch.set(Some(mm));
+                                serial_transport.with_value(|t| t.disconnect());
+                            });
+                        });
                         bridge_demuxer.update_value(|d| d.reset());
                         let mut init_bytes = build_get_caps_frame();
                         init_bytes.extend_from_slice(&build_uart_cfg_frame(
@@ -132,7 +148,13 @@ pub fn App() -> impl IntoView {
                             p.bridge_invert_tx,
                         ));
                         serial_transport.with_value(|t| t.send_bytes(&init_bytes));
+                    } else {
+                        handshake_guard.update_value(|g| g.cancel());
                     }
+                } else if !is_usb {
+                    handshake_guard.update_value(|g| g.cancel());
+                    mismatch.set(None);
+                    flasher_mismatch.set(None);
                 }
             },
             move |bytes: &[u8]| {
@@ -142,6 +164,18 @@ pub fn App() -> impl IntoView {
                     bridge_demuxer.update_value(|d| {
                         d.feed(bytes, |pkt| match pkt {
                             BridgePacket::Capabilities(id, caps) => {
+                                let mut verdict = Ok(());
+                                handshake_guard.update_value(|g| {
+                                    verdict = g.verify(&id);
+                                });
+                                if let Err(mm) = verdict {
+                                    mismatch.set(Some(mm.clone()));
+                                    flasher_mismatch.set(Some(mm));
+                                    serial_transport.with_value(|t| t.disconnect());
+                                    return;
+                                }
+                                mismatch.set(None);
+                                flasher_mismatch.set(None);
                                 identity.set(Some(id));
                                 bridge_caps.set(Some(caps));
                             }
@@ -202,6 +236,9 @@ pub fn App() -> impl IntoView {
         });
         bridge_demuxer.update_value(|d| d.reset());
         if mode == TerminalMode::DirectUsb {
+            handshake_guard.update_value(|g| g.cancel());
+            mismatch.set(None);
+            flasher_mismatch.set(None);
             identity.set(None);
             bridge_caps.set(None);
             let p = prefs.get_untracked();
@@ -209,7 +246,17 @@ pub fn App() -> impl IntoView {
                 .with_value(|t| t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect)));
         } else {
             let snap = transport.get_untracked();
-            if snap.status.is_active() && snap.transport != TransportKind::Demo {
+            if snap.status.is_usb_connected() {
+                let dev_name = snap.device_name.clone();
+                mismatch.set(None);
+                flasher_mismatch.set(None);
+                handshake_guard.update_value(|g| {
+                    g.arm_timeout(dev_name, 3500, move |mm| {
+                        mismatch.set(Some(mm.clone()));
+                        flasher_mismatch.set(Some(mm));
+                        serial_transport.with_value(|t| t.disconnect());
+                    });
+                });
                 let p = prefs.get_untracked();
                 let mut init_bytes = build_get_caps_frame();
                 init_bytes.extend_from_slice(&build_uart_cfg_frame(
@@ -354,6 +401,7 @@ pub fn App() -> impl IntoView {
     let on_close_settings = Callback::new(move |_| settings_open.set(false));
 
     let on_open_flasher = Callback::new(move |_| {
+        mismatch.set(None);
         editing_macro_idx.set(None);
         settings_tab.set("flasher".to_string());
         settings_open.set(true);
@@ -452,6 +500,7 @@ pub fn App() -> impl IntoView {
                 open=settings_open
                 active_tab=settings_tab
                 identity=identity
+                mismatch=flasher_mismatch
                 prefs=prefs
                 editing_macro_idx=editing_macro_idx
                 serial_transport=serial_transport
@@ -459,6 +508,11 @@ pub fn App() -> impl IntoView {
                 on_update_serial_cfg=on_update_serial_cfg
                 on_update_bridge_flags=on_update_bridge_flags
                 on_save_macro=on_save_macro
+            />
+
+            <FirmwareMismatchModal
+                mismatch=mismatch
+                on_open_flasher=on_open_flasher
             />
         </div>
     }

@@ -1,5 +1,5 @@
 use hotwire_core::flasher::{FirmwareProfile, FlasherPanel};
-use hotwire_core::protocol::{BoardIdentity, ToolId};
+use hotwire_core::protocol::{BoardIdentity, FirmwareMismatch, ToolId};
 use leptos::prelude::*;
 
 use crate::storage::preferences::{HotWirePreferences, LineEnding};
@@ -24,6 +24,7 @@ pub fn SettingsDrawer(
     open: RwSignal<bool>,
     active_tab: RwSignal<String>,
     identity: RwSignal<Option<BoardIdentity>>,
+    mismatch: RwSignal<Option<FirmwareMismatch>>,
     prefs: RwSignal<HotWirePreferences>,
     editing_macro_idx: RwSignal<Option<usize>>,
     serial_transport: StoredValue<SerialTransport, LocalStorage>,
@@ -92,6 +93,7 @@ pub fn SettingsDrawer(
                                     transport=serial_transport
                                     expected_tool=ToolId::SerialTerminal
                                     identity=identity
+                                    mismatch=mismatch
                                 />
                             </div>
 
