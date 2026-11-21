@@ -1,14 +1,14 @@
 # HotWire Serial Terminal — Cross-Platform Web Serial & WebUSB PWA
 
-[![Deploy to GitHub Pages](https://github.com/kavierim/HotWire-Serial-Terminal/actions/workflows/deploy.yml/badge.svg)](https://github.com/kavierim/HotWire-Serial-Terminal/actions/workflows/deploy.yml)
-[![Live Web App](https://img.shields.io/badge/Live_Web_App-GitHub_Pages-0ea5e9?logo=googlechrome&logoColor=white)](https://kavierim.github.io/HotWire-Serial-Terminal/)
+[![Deploy to GitHub Pages](https://github.com/hotwire-lab/serial/actions/workflows/deploy.yml/badge.svg)](https://github.com/hotwire-lab/serial/actions/workflows/deploy.yml)
+[![Live Web App](https://img.shields.io/badge/Live_Web_App-GitHub_Pages-0ea5e9?logo=googlechrome&logoColor=white)](https://hotwire-lab.github.io/serial/)
 [![Hardware](https://img.shields.io/badge/Drivers-CDC--ACM_%7C_FTDI_%7C_CP210x_%7C_CH340_%7C_PL2303-10b981)](https://developer.mozilla.org/en-US/docs/Web/API/WebUSB_API)
 [![Web Serial & WebUSB](https://img.shields.io/badge/USB-Web_Serial_%2F_WebUSB-8b5cf6)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API)
 [![Rust + WASM](https://img.shields.io/badge/Stack-Rust_%2B_Leptos_WASM-f97316?logo=rust&logoColor=white)](https://leptos.dev/)
 
-A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](https://trunkrs.dev/) + [`hotwire-core`](https://github.com/kavierim/hotwire-core)) for both **Desktop PCs** and **Android mobile devices**.
+A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](https://trunkrs.dev/) + [`hotwire-core`](https://github.com/hotwire-lab/hotwire-core)) for both **Desktop PCs** and **Android mobile devices**.
 
-> **Try it in 1 click (no hardware required):** Open **[https://kavierim.github.io/HotWire-Serial-Terminal/](https://kavierim.github.io/HotWire-Serial-Terminal/)** and click **Demo** to test the interactive ESP32-S3 serial shell.
+> **Try it in 1 click (no hardware required):** Open **[https://hotwire-lab.github.io/serial/](https://hotwire-lab.github.io/serial/)** and click **Demo** to test the interactive ESP32-S3 serial shell.
 
 ![HotWire Serial Terminal running in Demo mode with ASCII/HEX views, DTR/RTS/RST controls, and customizable macros](docs/serial-terminal-preview.jpg)
 
@@ -37,11 +37,11 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
 
 ## HotWire Ecosystem
 
-* **[`hotwire-core`](https://github.com/kavierim/hotwire-core)** — Shared Rust/WASM hardware transport, framing, firmware verification, Web Flasher & UI shell
-* **[HotWire Serial Terminal](https://github.com/kavierim/HotWire-Serial-Terminal)** ([Live App](https://kavierim.github.io/HotWire-Serial-Terminal/)) — Cross-platform Web Serial & WebUSB terminal for desktop and Android
-* **[HotWire Oscilloscope](https://github.com/kavierim/HotWire-Oscilloscope)** ([Live App](https://kavierim.github.io/HotWire-Oscilloscope/)) — 4-Channel 12-bit GDMA ADC Oscilloscope & FFT Spectrum Analyzer
-* **[HotWire Logic Analyzer](https://github.com/kavierim/HotWire-Logic-Analyzer)** ([Live App](https://kavierim.github.io/HotWire-Logic-Analyzer/)) — 8-Channel Logic Analyzer & Tri-State Force I/O with UART/SPI/I²C decoders
-* **[HotWire SDR](https://github.com/kavierim/HotWire-SDR)** ([Live App](https://kavierim.github.io/HotWire-SDR/)) — 1.84–2.79 GHz RF Spectrum Analyzer, Wideband Scanner & Waterfall for XIAO ESP32-S3 & XIAO ESP32-C6
+* **[`hotwire-core`](https://github.com/hotwire-lab/hotwire-core)** — Shared Rust/WASM hardware transport, framing, firmware verification, Web Flasher & UI shell
+* **[HotWire Serial Terminal](https://github.com/hotwire-lab/serial)** ([Live App](https://hotwire-lab.github.io/serial/)) — Cross-platform Web Serial & WebUSB terminal for desktop and Android
+* **[HotWire Oscilloscope](https://github.com/hotwire-lab/scope)** ([Live App](https://hotwire-lab.github.io/scope/)) — 4-Channel 12-bit GDMA ADC Oscilloscope & FFT Spectrum Analyzer
+* **[HotWire Logic Analyzer](https://github.com/hotwire-lab/logic)** ([Live App](https://hotwire-lab.github.io/logic/)) — 8-Channel Logic Analyzer & Tri-State Force I/O with UART/SPI/I²C decoders
+* **[HotWire SDR](https://github.com/hotwire-lab/sdr)** ([Live App](https://hotwire-lab.github.io/sdr/)) — 1.84–2.79 GHz RF Spectrum Analyzer, Wideband Scanner & Waterfall for XIAO ESP32-S3 & XIAO ESP32-C6
 
 ## Development
 

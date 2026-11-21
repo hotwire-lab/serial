@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://kavierim.github.io/HotWire-Serial-Terminal/sitemap.xml
+Sitemap: https://hotwire-lab.github.io/serial/sitemap.xml
