@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-use crate::buffer::formatters::{format_chunks, ViewMode};
+use crate::buffer::formatters::{append_formatted_chunk, rebuild_formatted_into, ViewMode};
 use crate::buffer::ring_buffer::{ChunkDirection, RingBuffer};
 use crate::components::bottom_command_bar::BottomCommandBar;
 use crate::components::settings_drawer::SettingsDrawer;
@@ -76,6 +76,9 @@ pub fn App() -> impl IntoView {
     let prefs = RwSignal::new(initial_prefs);
 
     let ring_buffer = StoredValue::new_local(RingBuffer::default());
+    let cached_text = StoredValue::new_local(String::with_capacity(4096));
+    let at_line_start = StoredValue::new(true);
+    let flush_pending = StoredValue::new(false);
     let rendered_text = RwSignal::new(String::new());
     let total_bytes = RwSignal::new(0usize);
     let auto_scroll = RwSignal::new(true);
@@ -86,27 +89,81 @@ pub fn App() -> impl IntoView {
     let bridge_demuxer = StoredValue::new_local(BridgeDemuxer::new());
     let was_connected = StoredValue::new_local(false);
 
+    let flush_view_now = move || {
+        ring_buffer.with_value(|rb| total_bytes.set(rb.total_bytes()));
+        cached_text.with_value(|txt| rendered_text.set(txt.clone()));
+    };
+
+    let schedule_flush = move || {
+        if flush_pending.get_value() {
+            return;
+        }
+        flush_pending.set_value(true);
+        if let Some(win) = web_sys::window() {
+            let cb = Closure::once_into_js(move || {
+                flush_pending.set_value(false);
+                flush_view_now();
+            });
+            let _ = win.request_animation_frame(cb.unchecked_ref());
+        } else {
+            flush_pending.set_value(false);
+            flush_view_now();
+        }
+    };
+
     let refresh_view = move || {
         let p = prefs.get_untracked();
         ring_buffer.with_value(|rb| {
-            total_bytes.set(rb.total_bytes());
-            rendered_text.set(format_chunks(
-                rb.chunks(),
-                p.view_mode,
-                p.show_timestamps,
-                p.show_invisible,
-            ));
+            let mut next_start = true;
+            cached_text.update_value(|buf| {
+                next_start = rebuild_formatted_into(
+                    buf,
+                    rb.chunks(),
+                    p.view_mode,
+                    p.show_timestamps,
+                    p.show_invisible,
+                );
+            });
+            at_line_start.set_value(next_start);
         });
+        flush_view_now();
     };
 
     let push_chunk = move |bytes: &[u8], dir: ChunkDirection| {
         if bytes.is_empty() {
             return;
         }
+        let p = prefs.get_untracked();
         ring_buffer.update_value(|rb| {
-            rb.push(bytes.to_vec(), now_ms(), dir);
+            let evicted = rb.push(bytes.to_vec(), now_ms(), dir);
+            if evicted {
+                let mut next_start = true;
+                cached_text.update_value(|buf| {
+                    next_start = rebuild_formatted_into(
+                        buf,
+                        rb.chunks(),
+                        p.view_mode,
+                        p.show_timestamps,
+                        p.show_invisible,
+                    );
+                });
+                at_line_start.set_value(next_start);
+            } else if let Some(chunk) = rb.last_chunk() {
+                let mut start = at_line_start.get_value();
+                cached_text.update_value(|buf| {
+                    append_formatted_chunk(
+                        buf,
+                        &mut start,
+                        chunk,
+                        p.view_mode,
+                        p.show_timestamps,
+                        p.show_invisible,
+                    );
+                });
+                at_line_start.set_value(start);
+            }
         });
-        refresh_view();
+        schedule_flush();
     };
 
     serial_transport.with_value(|st| {

@@ -249,7 +249,7 @@ html, body {
 /* XIAO UART Bridge & Web Flasher */
 .btn-flash {
   background: rgba(251, 191, 36, 0.14);
-  color: var(--amber);
+  color: var(--warn);
   border-color: rgba(251, 191, 36, 0.35);
 }
 .btn-flash:hover:not(:disabled) {
@@ -257,7 +257,7 @@ html, body {
 }
 .btn-flash.active {
   background: rgba(251, 191, 36, 0.25);
-  border-color: var(--amber);
+  border-color: var(--warn);
 }
 
 .drawer-tabs {
@@ -277,7 +277,7 @@ html, body {
   border-radius: 6px;
   background: rgba(251, 191, 36, 0.1);
   border: 1px solid rgba(251, 191, 36, 0.35);
-  color: var(--amber);
+  color: var(--warn);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -286,7 +286,7 @@ html, body {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  background: var(--bg-app);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
@@ -298,11 +298,11 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 .pin-table th {
-  color: var(--text-dim);
-  background: var(--bg-elevated);
+  color: var(--muted);
+  background: var(--surface-2);
   font-weight: 600;
 }
 .pin-table td {
-  color: var(--text-main);
+  color: var(--text);
   font-family: "JetBrains Mono", "Fira Code", monospace;
 }
