@@ -82,6 +82,7 @@ pub fn App() -> impl IntoView {
     let rendered_text = RwSignal::new(String::new());
     let total_bytes = RwSignal::new(0usize);
     let auto_scroll = RwSignal::new(true);
+    let subbar_open = RwSignal::new(false);
     let settings_open = RwSignal::new(false);
     let settings_tab = RwSignal::new("settings".to_string());
     let editing_macro_idx = RwSignal::new(None::<usize>);
@@ -529,6 +530,7 @@ pub fn App() -> impl IntoView {
                 identity=identity
                 prefs=prefs
                 bridge_caps=bridge_caps
+                subbar_open=subbar_open
                 settings_open=settings_open
                 settings_tab=settings_tab
                 on_connect=on_connect
@@ -550,6 +552,7 @@ pub fn App() -> impl IntoView {
                     total_bytes=total_bytes
                     prefs=prefs
                     auto_scroll=auto_scroll
+                    subbar_open=subbar_open
                     on_set_view_mode=on_set_view_mode
                     on_toggle_timestamps=on_toggle_timestamps
                     on_toggle_invisible=on_toggle_invisible
@@ -572,12 +575,20 @@ pub fn App() -> impl IntoView {
             <SettingsDrawer
                 open=settings_open
                 active_tab=settings_tab
+                transport=transport
                 identity=identity
                 mismatch=flasher_mismatch
                 prefs=prefs
                 editing_macro_idx=editing_macro_idx
                 serial_transport=serial_transport
                 on_close=on_close_settings
+                on_mode_change=on_mode_change
+                on_baud_change=on_baud_change
+                on_toggle_auto_connect=on_toggle_auto_connect
+                on_toggle_dtr=on_toggle_dtr
+                on_toggle_rts=on_toggle_rts
+                on_pulse_rst=on_pulse_rst
+                on_switch_port=on_switch_port
                 on_update_serial_cfg=on_update_serial_cfg
                 on_update_bridge_flags=on_update_bridge_flags
                 on_save_macro=on_save_macro

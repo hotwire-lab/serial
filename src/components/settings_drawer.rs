@@ -2,8 +2,8 @@ use hotwire_core::flasher::{FirmwareProfile, FlasherPanel};
 use hotwire_core::protocol::{BoardIdentity, FirmwareMismatch, ToolId};
 use leptos::prelude::*;
 
-use crate::storage::preferences::{HotWirePreferences, LineEnding};
-use crate::transport::serial::SerialTransport;
+use crate::storage::preferences::{HotWirePreferences, LineEnding, TerminalMode, BAUD_RATES};
+use crate::transport::serial::{SerialTransport, TransportSnapshot};
 
 fn uart_bridge_profiles() -> Vec<FirmwareProfile> {
     vec![
@@ -23,12 +23,20 @@ fn uart_bridge_profiles() -> Vec<FirmwareProfile> {
 pub fn SettingsDrawer(
     open: RwSignal<bool>,
     active_tab: RwSignal<String>,
+    transport: RwSignal<TransportSnapshot>,
     identity: RwSignal<Option<BoardIdentity>>,
     mismatch: RwSignal<Option<FirmwareMismatch>>,
     prefs: RwSignal<HotWirePreferences>,
     editing_macro_idx: RwSignal<Option<usize>>,
     serial_transport: StoredValue<SerialTransport, LocalStorage>,
     on_close: Callback<()>,
+    on_mode_change: Callback<TerminalMode>,
+    on_baud_change: Callback<u32>,
+    on_toggle_auto_connect: Callback<()>,
+    on_toggle_dtr: Callback<()>,
+    on_toggle_rts: Callback<()>,
+    on_pulse_rst: Callback<()>,
+    on_switch_port: Callback<u32>,
     on_update_serial_cfg: Callback<(u8, u8, u8, u8)>,
     on_update_bridge_flags: Callback<(bool, bool, bool)>,
     on_save_macro: Callback<(usize, String, String, LineEnding)>,
@@ -141,6 +149,115 @@ pub fn SettingsDrawer(
                     view! {
                         <div class="drawer-body">
                             <div class="drawer-col">
+                                <div class="mobile-serial-controls hw-mobile-only">
+                                    <h4>"Serial Connection"</h4>
+                                    <div class="form-grid">
+                                        <label class="ctrl-field">
+                                            <span class="group-label">"Mode"</span>
+                                            <select
+                                                class="ctrl-select"
+                                                aria-label="Serial mode"
+                                                prop:value=move || prefs.get().mode.as_str()
+                                                on:change=move |ev| {
+                                                    let mode = TerminalMode::from_str(&event_target_value(&ev));
+                                                    on_mode_change.run(mode);
+                                                }
+                                            >
+                                                <option value="direct">"Direct USB"</option>
+                                                <option value="bridge">"XIAO UART (D6/D7)"</option>
+                                            </select>
+                                        </label>
+
+                                        <label class="ctrl-field">
+                                            <span class="group-label">"Baud Rate"</span>
+                                            <select
+                                                class="ctrl-select"
+                                                aria-label="Baud rate"
+                                                prop:value=move || prefs.get().serial.baud_rate.to_string()
+                                                on:change=move |ev| {
+                                                    if let Ok(b) = event_target_value(&ev).parse::<u32>() {
+                                                        on_baud_change.run(b);
+                                                    }
+                                                }
+                                            >
+                                                {BAUD_RATES
+                                                    .into_iter()
+                                                    .map(|b| view! { <option value=b.to_string()>{format!("{b} baud")}</option> })
+                                                    .collect_view()}
+                                            </select>
+                                        </label>
+                                    </div>
+
+                                    <div class="inline-controls">
+                                        <button
+                                            type="button"
+                                            class=move || if prefs.get().auto_connect { "btn btn-sm btn-accent active" } else { "btn btn-sm btn-secondary" }
+                                            on:click=move |_| on_toggle_auto_connect.run(())
+                                        >
+                                            "Auto-Reconnect"
+                                        </button>
+
+                                        {move || {
+                                            let t = transport.get();
+                                            if t.port_count > 1 {
+                                                Some(view! {
+                                                    {(0..t.port_count)
+                                                        .map(|idx| {
+                                                            view! {
+                                                                <button
+                                                                    type="button"
+                                                                    class=move || {
+                                                                        if transport.get().port_index == idx {
+                                                                            "btn btn-sm btn-accent active"
+                                                                        } else {
+                                                                            "btn btn-sm btn-secondary"
+                                                                        }
+                                                                    }
+                                                                    on:click=move |_| on_switch_port.run(idx)
+                                                                >
+                                                                    {format!("P{idx}")}
+                                                                </button>
+                                                            }
+                                                        })
+                                                        .collect_view()}
+                                                })
+                                            } else {
+                                                None
+                                            }
+                                        }}
+
+                                        {move || {
+                                            if transport.get().status.is_active() {
+                                                Some(view! {
+                                                    <button
+                                                        type="button"
+                                                        class=move || if transport.get().dtr { "btn btn-sm btn-accent active" } else { "btn btn-sm btn-secondary" }
+                                                        on:click=move |_| on_toggle_dtr.run(())
+                                                    >
+                                                        "DTR"
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class=move || if transport.get().rts { "btn btn-sm btn-accent active" } else { "btn btn-sm btn-secondary" }
+                                                        on:click=move |_| on_toggle_rts.run(())
+                                                    >
+                                                        "RTS"
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-secondary"
+                                                        on:click=move |_| on_pulse_rst.run(())
+                                                    >
+                                                        "RST"
+                                                    </button>
+                                                })
+                                            } else {
+                                                None
+                                            }
+                                        }}
+                                    </div>
+                                </div>
+
                                 <h4>"UART Framing & XIAO Bridge"</h4>
                                 <div class="form-grid">
                                     <label class="ctrl-field">

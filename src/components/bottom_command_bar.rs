@@ -13,6 +13,7 @@ pub fn BottomCommandBar(
     on_edit_macro: Callback<usize>,
 ) -> impl IntoView {
     let input_val = RwSignal::new(String::new());
+    let macros_open = RwSignal::new(false);
     let cmd_history = StoredValue::new(Vec::<String>::new());
     let hist_idx = StoredValue::new(None::<usize>);
 
@@ -71,7 +72,39 @@ pub fn BottomCommandBar(
 
     view! {
         <footer class="command-bar">
-            <div class="macro-row">
+            <div class=move || {
+                if macros_open.get() {
+                    "macro-row mobile-open"
+                } else {
+                    "macro-row"
+                }
+            }>
+                <div class="inline-controls hw-mobile-only">
+                    <select
+                        class="ctrl-select ctrl-select-sm"
+                        aria-label="Line ending"
+                        prop:value=move || prefs.get().line_ending.as_str()
+                        on:change=move |ev| {
+                            on_set_line_ending.run(LineEnding::from_str(&event_target_value(&ev)));
+                        }
+                    >
+                        <option value="CRLF">"CRLF"</option>
+                        <option value="LF">"LF"</option>
+                        <option value="CR">"CR"</option>
+                        <option value="RAW">"RAW"</option>
+                    </select>
+                    <button
+                        type="button"
+                        class=move || if prefs.get().local_echo { "btn btn-xs btn-accent active" } else { "btn btn-xs btn-secondary" }
+                        on:click=move |_| on_toggle_echo.run(())
+                        title="Toggle Local Echo"
+                    >
+                        "Echo"
+                    </button>
+                </div>
+
+                <div class="control-divider-sm hw-mobile-only" />
+
                 <div class="inline-controls">
                     <button
                         type="button"
@@ -142,6 +175,23 @@ pub fn BottomCommandBar(
                     submit_cmd();
                 }
             >
+                <button
+                    type="button"
+                    class=move || {
+                        if macros_open.get() {
+                            "btn btn-sm btn-accent active hw-mobile-only"
+                        } else {
+                            "btn btn-sm btn-secondary hw-mobile-only"
+                        }
+                    }
+                    aria-label="Toggle Macros and Line Ending"
+                    aria-expanded=move || if macros_open.get() { "true" } else { "false" }
+                    on:click=move |_| macros_open.update(|v| *v = !*v)
+                    title="Toggle Macros, Control Keys & Line Ending"
+                >
+                    "M"
+                </button>
+
                 <input
                     type="text"
                     class="cmd-input"
@@ -163,7 +213,7 @@ pub fn BottomCommandBar(
                 />
 
                 <select
-                    class="ctrl-select ctrl-select-sm"
+                    class="ctrl-select ctrl-select-sm hw-desktop-only"
                     aria-label="Line ending"
                     prop:value=move || prefs.get().line_ending.as_str()
                     on:change=move |ev| {
@@ -178,7 +228,7 @@ pub fn BottomCommandBar(
 
                 <button
                     type="button"
-                    class=move || if prefs.get().local_echo { "btn btn-sm btn-accent active" } else { "btn btn-sm btn-secondary" }
+                    class=move || if prefs.get().local_echo { "btn btn-sm btn-accent active hw-desktop-only" } else { "btn btn-sm btn-secondary hw-desktop-only" }
                     on:click=move |_| on_toggle_echo.run(())
                     title="Toggle Local Echo"
                 >

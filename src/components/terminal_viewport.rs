@@ -11,6 +11,7 @@ pub fn TerminalViewport(
     total_bytes: RwSignal<usize>,
     prefs: RwSignal<HotWirePreferences>,
     auto_scroll: RwSignal<bool>,
+    subbar_open: RwSignal<bool>,
     on_set_view_mode: Callback<ViewMode>,
     on_toggle_timestamps: Callback<()>,
     on_toggle_invisible: Callback<()>,
@@ -47,7 +48,13 @@ pub fn TerminalViewport(
 
     view! {
         <section class="terminal-section">
-            <div class="control-bar terminal-subbar">
+            <div class=move || {
+                if subbar_open.get() {
+                    "control-bar terminal-subbar mobile-open"
+                } else {
+                    "control-bar terminal-subbar"
+                }
+            }>
                 <div class="inline-controls">
                     <button
                         type="button"

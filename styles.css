@@ -410,11 +410,6 @@ html, body {
 
 /* Responsive: Mobile Portrait & Narrow Viewports */
 @media (max-width: 720px) {
-  .hw-toolbar-actions .inline-controls {
-    flex-wrap: nowrap;
-    flex-shrink: 0;
-  }
-
   .ctrl-select {
     min-height: 36px;
     flex-shrink: 0;
@@ -422,12 +417,17 @@ html, body {
   }
 
   .terminal-subbar {
+    display: none;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
     padding: 5px max(8px, env(safe-area-inset-right)) 5px max(8px, env(safe-area-inset-left));
     gap: 6px;
+  }
+
+  .terminal-subbar.mobile-open {
+    display: flex;
   }
 
   .terminal-subbar::-webkit-scrollbar {
@@ -453,11 +453,16 @@ html, body {
   }
 
   .macro-row {
+    display: none;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
     gap: 6px;
+  }
+
+  .macro-row.mobile-open {
+    display: flex;
   }
 
   .macro-row::-webkit-scrollbar {
@@ -479,14 +484,7 @@ html, body {
 
   .command-input-row {
     flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    gap: 5px;
-  }
-
-  .command-input-row::-webkit-scrollbar {
-    display: none;
+    gap: 6px;
   }
 
   .command-input-row > * {
@@ -494,11 +492,19 @@ html, body {
   }
 
   .cmd-input {
-    flex: 1 1 150px;
-    min-width: 140px;
+    flex: 1 1 0;
+    min-width: 0;
     font-size: 16px;
     min-height: 38px;
     padding: 6px 10px;
+  }
+
+  .mobile-serial-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
   }
 
   .drawer-header {
