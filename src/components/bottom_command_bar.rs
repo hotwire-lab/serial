@@ -88,10 +88,10 @@ pub fn BottomCommandBar(
                             on_set_line_ending.run(LineEnding::from_str(&event_target_value(&ev)));
                         }
                     >
-                        <option value="CRLF">"CRLF"</option>
-                        <option value="LF">"LF"</option>
-                        <option value="CR">"CR"</option>
-                        <option value="RAW">"RAW"</option>
+                        <option value="CRLF" selected=move || prefs.get().line_ending == LineEnding::Crlf>"CRLF"</option>
+                        <option value="LF" selected=move || prefs.get().line_ending == LineEnding::Lf>"LF"</option>
+                        <option value="CR" selected=move || prefs.get().line_ending == LineEnding::Cr>"CR"</option>
+                        <option value="RAW" selected=move || prefs.get().line_ending == LineEnding::Raw>"RAW"</option>
                     </select>
                     <button
                         type="button"
@@ -220,10 +220,10 @@ pub fn BottomCommandBar(
                         on_set_line_ending.run(LineEnding::from_str(&event_target_value(&ev)));
                     }
                 >
-                    <option value="CRLF">"CRLF"</option>
-                    <option value="LF">"LF"</option>
-                    <option value="CR">"CR"</option>
-                    <option value="RAW">"RAW"</option>
+                    <option value="CRLF" selected=move || prefs.get().line_ending == LineEnding::Crlf>"CRLF"</option>
+                    <option value="LF" selected=move || prefs.get().line_ending == LineEnding::Lf>"LF"</option>
+                    <option value="CR" selected=move || prefs.get().line_ending == LineEnding::Cr>"CR"</option>
+                    <option value="RAW" selected=move || prefs.get().line_ending == LineEnding::Raw>"RAW"</option>
                 </select>
 
                 <button

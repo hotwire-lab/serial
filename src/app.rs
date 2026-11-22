@@ -210,6 +210,9 @@ pub fn App() -> impl IntoView {
                         bridge_demuxer.update_value(|d| d.reset());
                         handshake_guard.update_value(|g| {
                             g.arm_timeout(dev_name, 5000, move |mm| {
+                                if prefs.get_untracked().mode != TerminalMode::XiaoUartBridge {
+                                    return;
+                                }
                                 mismatch.set(Some(mm.clone()));
                                 flasher_mismatch.set(Some(mm));
                                 serial_transport.with_value(|t| t.disconnect());
@@ -217,6 +220,10 @@ pub fn App() -> impl IntoView {
                         });
                     } else {
                         handshake_guard.update_value(|g| g.cancel());
+                        mismatch.set(None);
+                        flasher_mismatch.set(None);
+                        identity.set(None);
+                        bridge_caps.set(None);
                     }
                 } else if !is_usb {
                     handshake_guard.update_value(|g| g.cancel());
@@ -269,7 +276,10 @@ pub fn App() -> impl IntoView {
     let on_connect = Callback::new(move |_| {
         let p = prefs.get_untracked();
         let cfg = to_core_serial_config(&p.serial, p.auto_connect);
-        serial_transport.with_value(|t| t.connect_usb_with_config(cfg));
+        serial_transport.with_value(|t| {
+            t.set_init_commands(build_bridge_init_cmds(&p));
+            t.connect_usb_with_config(cfg);
+        });
     });
 
     let on_disconnect = Callback::new(move |_| {
@@ -326,6 +336,9 @@ pub fn App() -> impl IntoView {
                 flasher_mismatch.set(None);
                 handshake_guard.update_value(|g| {
                     g.arm_timeout(dev_name, 5000, move |mm| {
+                        if prefs.get_untracked().mode != TerminalMode::XiaoUartBridge {
+                            return;
+                        }
                         mismatch.set(Some(mm.clone()));
                         flasher_mismatch.set(Some(mm));
                         serial_transport.with_value(|t| t.disconnect());

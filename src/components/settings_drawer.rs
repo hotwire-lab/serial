@@ -163,8 +163,8 @@ pub fn SettingsDrawer(
                                                     on_mode_change.run(mode);
                                                 }
                                             >
-                                                <option value="direct">"Direct USB"</option>
-                                                <option value="bridge">"XIAO UART (D6/D7)"</option>
+                                                <option value="direct" selected=move || prefs.get().mode == TerminalMode::DirectUsb>"Direct USB"</option>
+                                                <option value="bridge" selected=move || prefs.get().mode == TerminalMode::XiaoUartBridge>"XIAO UART (D6/D7)"</option>
                                             </select>
                                         </label>
 
@@ -182,7 +182,11 @@ pub fn SettingsDrawer(
                                             >
                                                 {BAUD_RATES
                                                     .into_iter()
-                                                    .map(|b| view! { <option value=b.to_string()>{format!("{b} baud")}</option> })
+                                                    .map(|b| view! {
+                                                        <option value=b.to_string() selected=move || prefs.get().serial.baud_rate == b>
+                                                            {format!("{b} baud")}
+                                                        </option>
+                                                    })
                                                     .collect_view()}
                                             </select>
                                         </label>
@@ -272,8 +276,8 @@ pub fn SettingsDrawer(
                                                 }
                                             }
                                         >
-                                            <option value="8">"8 bits"</option>
-                                            <option value="7">"7 bits"</option>
+                                            <option value="8" selected=move || prefs.get().serial.data_bits == 8>"8 bits"</option>
+                                            <option value="7" selected=move || prefs.get().serial.data_bits == 7>"7 bits"</option>
                                         </select>
                                     </label>
 
@@ -289,9 +293,9 @@ pub fn SettingsDrawer(
                                                 }
                                             }
                                         >
-                                            <option value="0">"None (N)"</option>
-                                            <option value="1">"Odd (O)"</option>
-                                            <option value="2">"Even (E)"</option>
+                                            <option value="0" selected=move || prefs.get().serial.parity == 0>"None (N)"</option>
+                                            <option value="1" selected=move || prefs.get().serial.parity == 1>"Odd (O)"</option>
+                                            <option value="2" selected=move || prefs.get().serial.parity == 2>"Even (E)"</option>
                                         </select>
                                     </label>
 
@@ -307,8 +311,8 @@ pub fn SettingsDrawer(
                                                 }
                                             }
                                         >
-                                            <option value="1">"1 bit"</option>
-                                            <option value="2">"2 bits"</option>
+                                            <option value="1" selected=move || prefs.get().serial.stop_bits == 1>"1 bit"</option>
+                                            <option value="2" selected=move || prefs.get().serial.stop_bits == 2>"2 bits"</option>
                                         </select>
                                     </label>
 
@@ -324,8 +328,8 @@ pub fn SettingsDrawer(
                                                 }
                                             }
                                         >
-                                            <option value="0">"None"</option>
-                                            <option value="1">"RTS / CTS"</option>
+                                            <option value="0" selected=move || prefs.get().serial.flow_control == 0>"None"</option>
+                                            <option value="1" selected=move || prefs.get().serial.flow_control == 1>"RTS / CTS"</option>
                                         </select>
                                     </label>
                                 </div>
@@ -414,10 +418,10 @@ pub fn SettingsDrawer(
                                                     prop:value=move || m_le.get().as_str()
                                                     on:change=move |ev| m_le.set(LineEnding::from_str(&event_target_value(&ev)))
                                                 >
-                                                    <option value="CRLF">"CRLF"</option>
-                                                    <option value="LF">"LF"</option>
-                                                    <option value="CR">"CR"</option>
-                                                    <option value="RAW">"RAW"</option>
+                                                    <option value="CRLF" selected=move || m_le.get() == LineEnding::Crlf>"CRLF"</option>
+                                                    <option value="LF" selected=move || m_le.get() == LineEnding::Lf>"LF"</option>
+                                                    <option value="CR" selected=move || m_le.get() == LineEnding::Cr>"CR"</option>
+                                                    <option value="RAW" selected=move || m_le.get() == LineEnding::Raw>"RAW"</option>
                                                 </select>
                                                 <button
                                                     type="button"

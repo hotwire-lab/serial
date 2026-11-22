@@ -65,8 +65,8 @@ pub fn TopToolbar(
                     on_mode_change.run(mode);
                 }
             >
-                <option value="direct">"Direct USB"</option>
-                <option value="bridge">"XIAO UART (D6/D7)"</option>
+                <option value="direct" selected=move || prefs.get().mode == TerminalMode::DirectUsb>"Direct USB"</option>
+                <option value="bridge" selected=move || prefs.get().mode == TerminalMode::XiaoUartBridge>"XIAO UART (D6/D7)"</option>
             </select>
 
             <select
@@ -81,7 +81,11 @@ pub fn TopToolbar(
             >
                 {BAUD_RATES
                     .into_iter()
-                    .map(|b| view! { <option value=b.to_string()>{format!("{b} baud")}</option> })
+                    .map(|b| view! {
+                        <option value=b.to_string() selected=move || prefs.get().serial.baud_rate == b>
+                            {format!("{b} baud")}
+                        </option>
+                    })
                     .collect_view()}
             </select>
 
