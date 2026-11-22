@@ -459,8 +459,8 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hotwire-core"
-version = "0.4.2"
-source = "git+https://github.com/hotwire-lab/hotwire-core?tag=v0.4.2#791571f4e9d7e72473ec6432f28615b61c72e3b2"
+version = "0.4.3"
+source = "git+https://github.com/hotwire-lab/hotwire-core?tag=v0.4.3#9a3e032779d5ae992cb64efa348265720d3bb820"
 dependencies = [
  "js-sys",
  "leptos",
