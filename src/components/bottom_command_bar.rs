@@ -145,6 +145,10 @@ pub fn BottomCommandBar(
                 <input
                     type="text"
                     class="cmd-input"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    enterkeyhint="send"
                     placeholder=move || {
                         if connected.get() {
                             "Type serial command (↑/↓ history)..."

@@ -99,36 +99,38 @@ pub fn SettingsDrawer(
 
                             <div class="drawer-col">
                                 <h4>"XIAO UART Bridge Wiring (3.3 V TTL)"</h4>
-                                <table class="pin-table">
-                                    <thead>
-                                        <tr>
-                                            <th>"Signal"</th>
-                                            <th>"XIAO ESP32-S3"</th>
-                                            <th>"XIAO ESP32-C6"</th>
-                                            <th>"Target Pin"</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>"UART TX"</td>
-                                            <td>"D6 (GPIO 43)"</td>
-                                            <td>"D6 (GPIO 16)"</td>
-                                            <td>"Target RX"</td>
-                                        </tr>
-                                        <tr>
-                                            <td>"UART RX"</td>
-                                            <td>"D7 (GPIO 44)"</td>
-                                            <td>"D7 (GPIO 17)"</td>
-                                            <td>"Target TX"</td>
-                                        </tr>
-                                        <tr>
-                                            <td>"GND"</td>
-                                            <td>"GND"</td>
-                                            <td>"GND"</td>
-                                            <td>"Target GND"</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                                <div class="pin-table-wrap">
+                                    <table class="pin-table">
+                                        <thead>
+                                            <tr>
+                                                <th>"Signal"</th>
+                                                <th>"XIAO ESP32-S3"</th>
+                                                <th>"XIAO ESP32-C6"</th>
+                                                <th>"Target Pin"</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>"UART TX"</td>
+                                                <td>"D6 (GPIO 43)"</td>
+                                                <td>"D6 (GPIO 16)"</td>
+                                                <td>"Target RX"</td>
+                                            </tr>
+                                            <tr>
+                                                <td>"UART RX"</td>
+                                                <td>"D7 (GPIO 44)"</td>
+                                                <td>"D7 (GPIO 17)"</td>
+                                                <td>"Target TX"</td>
+                                            </tr>
+                                            <tr>
+                                                <td>"GND"</td>
+                                                <td>"GND"</td>
+                                                <td>"GND"</td>
+                                                <td>"Target GND"</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                                 <div class="flash-warning">
                                     "⚠ 3.3 V logic only! Never connect 5 V RS-232 or 5 V TTL directly to XIAO pins without a level shifter. Use 'Swap TX/RX' in Framing & Bridge if you wired straight-through."
                                 </div>

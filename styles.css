@@ -14,7 +14,7 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   overflow: hidden;
 }
@@ -24,6 +24,8 @@ html, body {
   flex-direction: column;
   width: 100%;
   height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .inline-controls {
@@ -33,16 +35,33 @@ html, body {
   flex-wrap: wrap;
 }
 
-.btn-xs { padding: 2px 7px; font-size: 11px; border-radius: 4px; }
-.btn-secondary.active { background: #222d40; border-color: var(--accent); }
+.btn-xs {
+  padding: 3px 7px;
+  font-size: 11px;
+  border-radius: 3px;
+}
+
+.btn-secondary.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
+}
 
 .ctrl-select {
   background: var(--surface-2);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
   padding: 4px 7px;
+  font-family: var(--font-sans);
   font-size: 12px;
+  touch-action: manipulation;
+  transition: border-color 0.12s;
+}
+
+.ctrl-select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .ctrl-select-sm {
@@ -53,7 +72,7 @@ html, body {
 /* Terminal Main Viewport */
 .serial-main {
   flex: 1;
-  min-height: 180px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -61,6 +80,7 @@ html, body {
 
 .terminal-section {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -70,32 +90,37 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
-  background: #101620;
+  padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .mono-muted {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .terminal-viewport-wrap {
   position: relative;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
-  background: #0a0f17;
+  background: var(--bg);
 }
 
 .terminal-viewport {
   width: 100%;
   height: 100%;
   overflow: auto;
-  padding: 10px 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 10px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
+  font-family: var(--font-mono);
   line-height: 1.45;
-  color: #e6edf3;
+  color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
@@ -105,17 +130,18 @@ html, body {
   position: absolute;
   right: 14px;
   bottom: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 /* Bottom Command Bar */
 .command-bar {
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 8px 12px;
+  padding: 8px max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: 7px;
+  flex-shrink: 0;
 }
 
 .macro-row {
@@ -129,6 +155,7 @@ html, body {
   width: 1px;
   height: 18px;
   background: var(--border);
+  flex-shrink: 0;
 }
 
 .macro-chips {
@@ -139,17 +166,33 @@ html, body {
 }
 
 .macro-chip {
-  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
   background: var(--surface-2);
-  color: #7dd3fc;
+  color: var(--text-soft);
   padding: 3px 9px;
-  border-radius: 999px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border-radius: 3px;
+  font-family: var(--font-mono);
   font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-.macro-chip:hover:not(:disabled) { border-color: var(--accent); background: #222d40; }
-.macro-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.macro-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.macro-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .command-input-row {
   display: flex;
@@ -159,14 +202,21 @@ html, body {
 
 .cmd-input {
   flex: 1;
-  background: #090d14;
+  min-width: 0;
+  background: var(--bg);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
   padding: 6px 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
+  transition: border-color 0.12s;
 }
+
+.cmd-input::placeholder {
+  color: var(--muted);
+}
+
 .cmd-input:focus {
   outline: none;
   border-color: var(--accent);
@@ -176,30 +226,37 @@ html, body {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
   display: none;
   align-items: flex-end;
   z-index: 50;
 }
-.drawer-backdrop.open { display: flex; }
+
+.drawer-backdrop.open {
+  display: flex;
+}
 
 .bottom-drawer {
   width: 100%;
-  max-height: 75vh;
+  max-height: 86dvh;
   background: var(--surface);
-  border-top: 1px solid var(--border);
-  border-radius: 12px 12px 0 0;
+  border-top: 1px solid var(--border-strong);
+  border-radius: 8px 8px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .drawer-body {
@@ -208,12 +265,21 @@ html, body {
   gap: 16px;
   padding: 14px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .drawer-col {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+}
+
+.drawer-col h4 {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .form-grid {
@@ -226,12 +292,19 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
+}
+
+.ctrl-field .ctrl-select {
+  width: 100%;
 }
 
 .group-label {
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.04em;
   color: var(--muted);
 }
 
@@ -242,22 +315,26 @@ html, body {
   flex-wrap: wrap;
   background: var(--surface-2);
   padding: 8px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--border);
 }
 
 /* XIAO UART Bridge & Web Flasher */
 .btn-flash {
-  background: rgba(251, 191, 36, 0.14);
-  color: var(--warn);
-  border-color: rgba(251, 191, 36, 0.35);
+  background: var(--accent-dim);
+  color: #fde68a;
+  border-color: rgba(229, 169, 60, 0.45);
 }
+
 .btn-flash:hover:not(:disabled) {
-  background: rgba(251, 191, 36, 0.24);
+  background: rgba(240, 180, 41, 0.24);
+  border-color: var(--accent);
 }
+
 .btn-flash.active {
-  background: rgba(251, 191, 36, 0.25);
-  border-color: var(--warn);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b0e12;
 }
 
 .drawer-tabs {
@@ -265,21 +342,30 @@ html, body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .bridge-flags {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .flash-warning {
-  margin-top: 10px;
+  margin-top: 6px;
   padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  color: var(--warn);
+  border-radius: 4px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(229, 169, 60, 0.45);
+  color: #fde68a;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.pin-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }
 
 .pin-table {
@@ -287,32 +373,183 @@ html, body {
   border-collapse: collapse;
   font-size: 12px;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
 }
+
 .pin-table th,
 .pin-table td {
   padding: 6px 10px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
+
+.pin-table tr:last-child td {
+  border-bottom: none;
+}
+
 .pin-table th {
+  font-family: var(--font-sans);
   color: var(--muted);
   background: var(--surface-2);
   font-weight: 600;
 }
+
 .pin-table td {
   color: var(--text);
-  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-family: var(--font-mono);
 }
 
+/* Comfortable Touch Targets on Coarse Pointers */
+@media (pointer: coarse) {
+  .ctrl-select,
+  .macro-chip,
+  .btn-xs {
+    min-height: 36px;
+  }
+}
+
+/* Responsive: Mobile Portrait & Narrow Viewports */
 @media (max-width: 720px) {
-  .command-bar {
-    padding: 6px 8px;
+  .hw-toolbar-actions .inline-controls {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  .ctrl-select {
+    min-height: 36px;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+
+  .terminal-subbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 5px max(8px, env(safe-area-inset-right)) 5px max(8px, env(safe-area-inset-left));
     gap: 6px;
   }
-  .settings-grid {
+
+  .terminal-subbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-subbar .inline-controls {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  .terminal-subbar .control-spacer {
+    min-width: 8px;
+  }
+
+  .terminal-viewport {
+    padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  }
+
+  .command-bar {
+    padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    gap: 6px;
+  }
+
+  .macro-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+  }
+
+  .macro-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .macro-row .inline-controls,
+  .macro-chips {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  .macro-chip,
+  .btn-xs {
+    min-height: 36px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .command-input-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 5px;
+  }
+
+  .command-input-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .command-input-row > * {
+    flex-shrink: 0;
+  }
+
+  .cmd-input {
+    flex: 1 1 150px;
+    min-width: 140px;
+    font-size: 16px;
+    min-height: 38px;
+    padding: 6px 10px;
+  }
+
+  .drawer-header {
+    padding: 8px 10px;
+  }
+
+  .drawer-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .drawer-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .drawer-tabs > *,
+  .drawer-header > .btn {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .drawer-body {
     grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .macro-editor-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .macro-editor-box .cmd-input {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* Responsive: Landscape Phones (short viewport height) */
+@media (max-height: 480px) {
+  .terminal-subbar {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .command-bar {
+    padding-top: 4px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+    gap: 4px;
   }
 }
