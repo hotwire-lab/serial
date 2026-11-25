@@ -2,6 +2,7 @@
 pub struct DemoShell {
     rx_line: String,
     uptime_ticks: u32,
+    last_was_cr: bool,
 }
 
 impl Default for DemoShell {
@@ -15,6 +16,7 @@ impl DemoShell {
         Self {
             rx_line: String::new(),
             uptime_ticks: 0,
+            last_was_cr: false,
         }
     }
 
@@ -41,6 +43,11 @@ impl DemoShell {
     pub fn handle_input(&mut self, bytes: &[u8]) -> Vec<u8> {
         let mut out = Vec::new();
         for &b in bytes {
+            if b == b'\n' && self.last_was_cr {
+                self.last_was_cr = false;
+                continue;
+            }
+            self.last_was_cr = b == b'\r';
             if b == b'\r' || b == b'\n' {
                 let cmd = self.rx_line.trim().to_string();
                 self.rx_line.clear();

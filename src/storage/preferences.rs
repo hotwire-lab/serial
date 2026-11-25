@@ -96,6 +96,7 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct HotWirePreferences {
     pub mode: TerminalMode,
     pub serial: SerialPortConfig,
@@ -165,7 +166,8 @@ pub fn load_preferences() -> HotWirePreferences {
         .and_then(|w| w.local_storage().ok().flatten())
         .and_then(|s| s.get_item(PREFS_KEY).ok().flatten());
     if let Some(json) = raw {
-        if let Ok(parsed) = serde_json::from_str::<HotWirePreferences>(&json) {
+        if let Ok(mut parsed) = serde_json::from_str::<HotWirePreferences>(&json) {
+            parsed.font_size = parsed.font_size.clamp(9, 24);
             return parsed;
         }
     }

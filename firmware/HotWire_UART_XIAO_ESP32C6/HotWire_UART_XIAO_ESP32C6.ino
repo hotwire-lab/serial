@@ -18,6 +18,7 @@
 #include <string.h>
 #include "driver/uart.h"
 #include "esp_system.h"
+#include "soc/lp_aon_reg.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -156,8 +157,11 @@ static void handle_frame(uint8_t cmd, const uint8_t* payload, uint16_t len) {
       break;
     case CMD_BOOTLOADER:
       if (len >= 4 && payload[0] == 0xB0 && payload[1] == 0x07 && payload[2] == 0x10 && payload[3] == 0xAD) {
+        if (g_uart_mutex) xSemaphoreTake(g_uart_mutex, pdMS_TO_TICKS(100));
         Serial1.end();
         vTaskDelay(pdMS_TO_TICKS(20));
+        REG_SET_BIT(LP_AON_SYS_CFG_REG, LP_AON_FORCE_DOWNLOAD_BOOT);
+        vTaskDelay(pdMS_TO_TICKS(10));
         esp_restart();
       }
       break;
@@ -176,7 +180,7 @@ static void uart_rx_task(void* arg) {
     avail = Serial1.available();
     if (avail > 0) {
       size_t to_read = min<size_t>((size_t)avail, sizeof(rx_buf));
-      size_t got = Serial1.readBytes(rx_buf, to_read);
+      size_t got = Serial1.read(rx_buf, to_read);
       if (g_uart_mutex) xSemaphoreGive(g_uart_mutex);
       if (got > 0) {
         send_frame(TYPE_UART_RX, rx_buf, (uint16_t)got);

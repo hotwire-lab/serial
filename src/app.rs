@@ -108,7 +108,26 @@ pub fn App() -> impl IntoView {
         }
     };
 
+    let needs_rebuild = StoredValue::new_local(false);
+
     let flush_view_now = move || {
+        if needs_rebuild.get_value() {
+            needs_rebuild.set_value(false);
+            let p = prefs.get_untracked();
+            ring_buffer.with_value(|rb| {
+                let mut next_start = true;
+                cached_text.update_value(|buf| {
+                    next_start = rebuild_formatted_into(
+                        buf,
+                        rb.chunks(),
+                        p.view_mode,
+                        p.show_timestamps,
+                        p.show_invisible,
+                    );
+                });
+                at_line_start.set_value(next_start);
+            });
+        }
         ring_buffer.with_value(|rb| total_bytes.set(rb.total_bytes()));
         cached_text.with_value(|txt| rendered_text.set(txt.clone()));
     };
@@ -156,30 +175,22 @@ pub fn App() -> impl IntoView {
         ring_buffer.update_value(|rb| {
             let evicted = rb.push(bytes.to_vec(), now_ms(), dir);
             if evicted {
-                let mut next_start = true;
-                cached_text.update_value(|buf| {
-                    next_start = rebuild_formatted_into(
-                        buf,
-                        rb.chunks(),
-                        p.view_mode,
-                        p.show_timestamps,
-                        p.show_invisible,
-                    );
-                });
-                at_line_start.set_value(next_start);
-            } else if let Some(chunk) = rb.last_chunk() {
-                let mut start = at_line_start.get_value();
-                cached_text.update_value(|buf| {
-                    append_formatted_chunk(
-                        buf,
-                        &mut start,
-                        chunk,
-                        p.view_mode,
-                        p.show_timestamps,
-                        p.show_invisible,
-                    );
-                });
-                at_line_start.set_value(start);
+                needs_rebuild.set_value(true);
+            } else if !needs_rebuild.get_value() {
+                if let Some(chunk) = rb.last_chunk() {
+                    let mut start = at_line_start.get_value();
+                    cached_text.update_value(|buf| {
+                        append_formatted_chunk(
+                            buf,
+                            &mut start,
+                            chunk,
+                            p.view_mode,
+                            p.show_timestamps,
+                            p.show_invisible,
+                        );
+                    });
+                    at_line_start.set_value(start);
+                }
             }
         });
         schedule_flush();
@@ -472,6 +483,7 @@ pub fn App() -> impl IntoView {
 
     let on_edit_macro = Callback::new(move |idx: usize| {
         editing_macro_idx.set(Some(idx));
+        settings_open.set(true);
     });
 
     let on_close_settings = Callback::new(move |_| settings_open.set(false));

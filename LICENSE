@@ -144,15 +144,15 @@
 
    8. Limitation of Liability. In no event and under no legal theory,
       whether in tort (including negligence), contract, or otherwise,
-      unless required by applicable law (such as deliberate XML strings)
-      or agreed to in writing, shall any Contributor be liable to You for
-      damages, including any direct, indirect, special, incidental, or
-      consequential damages of any character arising as a result of this
-      License or out of the use or inability to use the Work (including
-      but not limited to damages for loss of goodwill, work stoppage,
-      computer failure or malfunction, or any and all other commercial
-      damages or losses), even if such Contributor has been advised of the
-      possibility of such damages.
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
 
    9. Accepting Warranty or Additional Liability. While redistributing
       the Work or Derivative Works thereof, You may choose to offer,
@@ -173,9 +173,10 @@
       boilerplate notice, with the fields enclosed by brackets "[]"
       replaced with your own identifying information. (Don't include
       the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that you
-      include a file named "comment", or "LICENSE" if appropriate, to
-      follow the easier syntax.
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
 
       Copyright 2026 Kari Vierimaa, Kempele
 

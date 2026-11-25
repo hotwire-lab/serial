@@ -91,11 +91,11 @@ pub fn append_formatted_chunk(
     out.reserve(raw.len());
     let mut chars = raw.chars().peekable();
     while let Some(ch) = chars.next() {
-        // Strip ANSI CSI escape sequences (\x1b[...<letter>)
+        // Strip ANSI CSI escape sequences (\x1b[...<final byte 0x40..=0x7E>)
         if ch == '\x1b' && chars.peek() == Some(&'[') {
             chars.next();
             for c in chars.by_ref() {
-                if c.is_ascii_alphabetic() {
+                if ('@'..='~').contains(&c) {
                     break;
                 }
             }
