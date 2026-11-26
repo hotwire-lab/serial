@@ -34,12 +34,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "freertos/queue.h"
 
 #ifndef CONFIG_IDF_TARGET_ESP32S3
   #error "This sketch targets Seeed Studio XIAO ESP32-S3."
 #endif
 
-#define HOTWIRE_FW_VERSION "1.0.0-uart"
+#define HOTWIRE_FW_VERSION "1.1.0-uart"
 #define HOTWIRE_BOARD_NAME "XIAO-ESP32-S3"
 
 static const int PIN_TX_DEFAULT = 43; // D6
@@ -59,6 +60,16 @@ static const uint8_t TYPE_UART_RX    = 0x87;
 
 static SemaphoreHandle_t g_serial_mutex = nullptr;
 static SemaphoreHandle_t g_uart_mutex = nullptr;
+
+// UART TX is decoupled from the USB command task so a slow target baud rate
+// can never block STOP / reconfiguration commands at the USB side.
+static const size_t UART_TX_CHUNK_BYTES = 256;
+static const UBaseType_t UART_TX_QUEUE_DEPTH = 16;
+struct UartTxChunk {
+  uint16_t len;
+  uint8_t data[UART_TX_CHUNK_BYTES];
+};
+static QueueHandle_t g_uart_tx_queue = nullptr;
 
 static uint32_t g_baud = 115200;
 static uint8_t  g_data_bits = 8;
@@ -123,6 +134,7 @@ static uint32_t resolve_uart_config(uint8_t data_bits, uint8_t stop_bits, uint8_
 
 static void apply_uart_config() {
   if (g_uart_mutex) xSemaphoreTake(g_uart_mutex, portMAX_DELAY);
+  if (g_uart_tx_queue) xQueueReset(g_uart_tx_queue);
   Serial1.end();
   Serial1.setRxBufferSize(4096);
 
@@ -161,10 +173,20 @@ static void handle_frame(uint8_t cmd, const uint8_t* payload, uint16_t len) {
       }
       break;
     case CMD_UART_TX:
-      if (len > 0) {
-        if (g_uart_mutex) xSemaphoreTake(g_uart_mutex, portMAX_DELAY);
-        Serial1.write(payload, len);
-        if (g_uart_mutex) xSemaphoreGive(g_uart_mutex);
+      if (len > 0 && g_uart_tx_queue != nullptr) {
+        size_t off = 0;
+        while (off < len) {
+          UartTxChunk chunk = {};
+          size_t n = min<size_t>(UART_TX_CHUNK_BYTES, (size_t)len - off);
+          chunk.len = (uint16_t)n;
+          memcpy(chunk.data, payload + off, n);
+          // Non-blocking: if the target is slower than USB, newest data is
+          // dropped rather than freezing the command/UART-RX pipeline.
+          if (xQueueSend(g_uart_tx_queue, &chunk, 0) != pdTRUE) {
+            break;
+          }
+          off += n;
+        }
       }
       break;
     case CMD_BOOTLOADER:
@@ -178,6 +200,33 @@ static void handle_frame(uint8_t cmd, const uint8_t* payload, uint16_t len) {
       break;
     default:
       break;
+  }
+}
+
+static void uart_tx_task(void* arg) {
+  (void)arg;
+  UartTxChunk chunk;
+  for (;;) {
+    if (xQueueReceive(g_uart_tx_queue, &chunk, portMAX_DELAY) != pdTRUE) {
+      continue;
+    }
+    size_t sent = 0;
+    while (sent < chunk.len) {
+      int avail = 0;
+      size_t written = 0;
+      if (g_uart_mutex) xSemaphoreTake(g_uart_mutex, portMAX_DELAY);
+      avail = Serial1.availableForWrite();
+      if (avail > 0) {
+        size_t n = min<size_t>((size_t)avail, (size_t)chunk.len - sent);
+        written = Serial1.write(chunk.data + sent, n);
+      }
+      if (g_uart_mutex) xSemaphoreGive(g_uart_mutex);
+      if (written > 0) {
+        sent += written;
+      } else {
+        vTaskDelay(1);
+      }
+    }
   }
 }
 
@@ -268,10 +317,12 @@ void setup() {
 
   g_serial_mutex = xSemaphoreCreateMutex();
   g_uart_mutex = xSemaphoreCreateMutex();
+  g_uart_tx_queue = xQueueCreate(UART_TX_QUEUE_DEPTH, sizeof(UartTxChunk));
   apply_uart_config();
 
   xTaskCreatePinnedToCore(usb_rx_task, "usb_rx", 4096, nullptr, 4, nullptr, 0);
   xTaskCreatePinnedToCore(uart_rx_task, "uart_rx", 4096, nullptr, 3, nullptr, 1);
+  xTaskCreatePinnedToCore(uart_tx_task, "uart_tx", 3072, nullptr, 2, nullptr, 1);
 }
 
 void loop() {

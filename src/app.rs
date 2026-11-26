@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use hotwire_core::protocol::{BoardIdentity, FirmwareMismatch, ToolId};
 use hotwire_core::transport::HandshakeGuard;
 use hotwire_core::ui::{FirmwareMismatchModal, HotWireTheme};
@@ -5,7 +7,7 @@ use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-use crate::buffer::formatters::{append_formatted_chunk, rebuild_formatted_into, ViewMode};
+use crate::buffer::formatters::{append_formatted_chunk, ViewMode};
 use crate::buffer::ring_buffer::{ChunkDirection, RingBuffer};
 use crate::components::bottom_command_bar::BottomCommandBar;
 use crate::components::settings_drawer::SettingsDrawer;
@@ -24,6 +26,19 @@ use crate::transport::serial::{
 
 fn now_ms() -> u64 {
     js_sys::Date::now() as u64
+}
+
+/// Splits bytes into a complete UTF-8 prefix and an incomplete trailing
+/// sequence that should be carried into the next USB chunk.
+fn split_utf8_tail(data: &[u8]) -> (usize, Vec<u8>) {
+    match std::str::from_utf8(data) {
+        Ok(_) => (data.len(), Vec::new()),
+        Err(err) if err.error_len().is_none() => {
+            let split = err.valid_up_to();
+            (split, data[split..].to_vec())
+        }
+        Err(_) => (data.len(), Vec::new()),
+    }
 }
 
 fn download_text_file(filename: &str, content: &str) {
@@ -51,14 +66,13 @@ fn download_text_file(filename: &str, content: &str) {
         }
     }
     let url_clone = url.clone();
-    let cb = Closure::once(move || {
+    let cb = Closure::once_into_js(move || {
         let _ = web_sys::Url::revoke_object_url(&url_clone);
     });
     let _ = win.set_timeout_with_callback_and_timeout_and_arguments_0(
         cb.as_ref().unchecked_ref(),
         1000,
     );
-    cb.forget();
 }
 
 #[component]
@@ -77,6 +91,9 @@ pub fn App() -> impl IntoView {
 
     let ring_buffer = StoredValue::new_local(RingBuffer::default());
     let cached_text = StoredValue::new_local(String::with_capacity(4096));
+    let formatted_lens = StoredValue::new_local(VecDeque::<usize>::new());
+    let pending_trim_chars = StoredValue::new(0usize);
+    let utf8_carry = StoredValue::new_local(Vec::<u8>::new());
     let at_line_start = StoredValue::new(true);
     let flush_pending = StoredValue::new(false);
     let rendered_text = RwSignal::new(String::new());
@@ -110,23 +127,39 @@ pub fn App() -> impl IntoView {
 
     let needs_rebuild = StoredValue::new_local(false);
 
-    let flush_view_now = move || {
-        if needs_rebuild.get_value() {
-            needs_rebuild.set_value(false);
-            let p = prefs.get_untracked();
-            ring_buffer.with_value(|rb| {
-                let mut next_start = true;
-                cached_text.update_value(|buf| {
-                    next_start = rebuild_formatted_into(
+    let rebuild_cache = move || {
+        let p = prefs.get_untracked();
+        ring_buffer.with_value(|rb| {
+            let mut lens = VecDeque::new();
+            let mut next_start = true;
+            cached_text.update_value(|buf| {
+                buf.clear();
+                let mut start = true;
+                for chunk in rb.chunks() {
+                    let before = buf.len();
+                    append_formatted_chunk(
                         buf,
-                        rb.chunks(),
+                        &mut start,
+                        chunk,
                         p.view_mode,
                         p.show_timestamps,
                         p.show_invisible,
                     );
-                });
-                at_line_start.set_value(next_start);
+                    lens.push_back(buf.len() - before);
+                }
+                next_start = start;
             });
+            formatted_lens.set_value(lens);
+            pending_trim_chars.set_value(0);
+            at_line_start.set_value(next_start);
+            needs_rebuild.set_value(false);
+        });
+    };
+
+    let flush_view_now = move || {
+        if needs_rebuild.get_value() {
+            needs_rebuild.set_value(false);
+            rebuild_cache();
         }
         ring_buffer.with_value(|rb| total_bytes.set(rb.total_bytes()));
         cached_text.with_value(|txt| rendered_text.set(txt.clone()));
@@ -142,7 +175,15 @@ pub fn App() -> impl IntoView {
                 flush_pending.set_value(false);
                 flush_view_now();
             });
-            let _ = win.request_animation_frame(cb.unchecked_ref());
+            // Cap UI text updates at ~20 fps; at high baud rates a full
+            // viewport clone on every animation frame is unnecessarily costly.
+            if win
+                .set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 50)
+                .is_err()
+            {
+                flush_pending.set_value(false);
+                flush_view_now();
+            }
         } else {
             flush_pending.set_value(false);
             flush_view_now();
@@ -150,20 +191,7 @@ pub fn App() -> impl IntoView {
     };
 
     let refresh_view = move || {
-        let p = prefs.get_untracked();
-        ring_buffer.with_value(|rb| {
-            let mut next_start = true;
-            cached_text.update_value(|buf| {
-                next_start = rebuild_formatted_into(
-                    buf,
-                    rb.chunks(),
-                    p.view_mode,
-                    p.show_timestamps,
-                    p.show_invisible,
-                );
-            });
-            at_line_start.set_value(next_start);
-        });
+        rebuild_cache();
         flush_view_now();
     };
 
@@ -172,24 +200,77 @@ pub fn App() -> impl IntoView {
             return;
         }
         let p = prefs.get_untracked();
+        let (valid_len, buffer) = if p.view_mode == ViewMode::Ascii {
+            let mut combined = utf8_carry.get_value();
+            combined.extend_from_slice(bytes);
+            let (split, tail) = split_utf8_tail(&combined);
+            utf8_carry.set_value(tail);
+            (split, combined)
+        } else {
+            let mut combined = utf8_carry.get_value();
+            utf8_carry.set_value(Vec::new());
+            combined.extend_from_slice(bytes);
+            (combined.len(), combined)
+        };
+        if valid_len == 0 {
+            return;
+        }
+        let bytes = &buffer[..valid_len];
         ring_buffer.update_value(|rb| {
             let evicted = rb.push(bytes.to_vec(), now_ms(), dir);
-            if evicted {
-                needs_rebuild.set_value(true);
-            } else if !needs_rebuild.get_value() {
-                if let Some(chunk) = rb.last_chunk() {
-                    let mut start = at_line_start.get_value();
+            if needs_rebuild.get_value() {
+                return;
+            }
+
+            let mut trim_chars = 0usize;
+            if evicted > 0 {
+                let available = formatted_lens.with_value(|lens| lens.len());
+                if available < evicted {
+                    // Formatting state is incomplete (e.g. a view change is
+                    // pending); rebuild from the ring buffer on next flush.
+                    needs_rebuild.set_value(true);
+                    return;
+                }
+                formatted_lens.update_value(|lens| {
+                    for _ in 0..evicted {
+                        trim_chars += lens.pop_front().unwrap_or(0);
+                    }
+                });
+            }
+
+            if let Some(chunk) = rb.last_chunk() {
+                let mut start = at_line_start.get_value();
+                let mut appended_len = 0usize;
+                cached_text.update_value(|buf| {
+                    let before = buf.len();
+                    append_formatted_chunk(
+                        buf,
+                        &mut start,
+                        chunk,
+                        p.view_mode,
+                        p.show_timestamps,
+                        p.show_invisible,
+                    );
+                    appended_len = buf.len() - before;
+                });
+                at_line_start.set_value(start);
+                formatted_lens.update_value(|lens| lens.push_back(appended_len));
+            }
+
+            if trim_chars > 0 {
+                pending_trim_chars.set_value(pending_trim_chars.get_value() + trim_chars);
+                let pending = pending_trim_chars.get_value();
+                if pending >= 64 * 1024 {
+                    let mut removed = 0usize;
                     cached_text.update_value(|buf| {
-                        append_formatted_chunk(
-                            buf,
-                            &mut start,
-                            chunk,
-                            p.view_mode,
-                            p.show_timestamps,
-                            p.show_invisible,
-                        );
+                        let mut n = pending.min(buf.len());
+                        while n > 0 && !buf.is_char_boundary(n) {
+                            n -= 1;
+                        }
+                        buf.drain(..n);
+                        removed = n;
                     });
-                    at_line_start.set_value(start);
+                    pending_trim_chars.set_value(pending.saturating_sub(removed));
                 }
             }
         });
@@ -213,6 +294,7 @@ pub fn App() -> impl IntoView {
                     identity.set(None);
                     bridge_caps.set(None);
                     bridge_demuxer.update_value(|d| d.reset());
+                    utf8_carry.set_value(Vec::new());
                 } else if !prev_usb && is_usb {
                     let p = prefs.get_untracked();
                     if p.mode == TerminalMode::XiaoUartBridge {
@@ -435,6 +517,9 @@ pub fn App() -> impl IntoView {
 
     let on_clear = Callback::new(move |_| {
         ring_buffer.update_value(|rb| rb.clear());
+        utf8_carry.set_value(Vec::new());
+        formatted_lens.set_value(VecDeque::new());
+        pending_trim_chars.set_value(0);
         refresh_view();
     });
 
@@ -624,5 +709,22 @@ pub fn App() -> impl IntoView {
                 on_open_flasher=on_open_flasher
             />
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_utf8_tail;
+
+    #[test]
+    fn carries_split_utf8_sequences() {
+        let bytes = "Moi ä".as_bytes();
+        let (valid, tail) = split_utf8_tail(&bytes[..bytes.len() - 1]);
+        assert_eq!(valid, "Moi ".len());
+        assert_eq!(tail, &bytes[4..5]);
+
+        let (valid, tail) = split_utf8_tail(bytes);
+        assert_eq!(valid, bytes.len());
+        assert!(tail.is_empty());
     }
 }

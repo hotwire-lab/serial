@@ -18,9 +18,9 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
   * **Desktop (Chrome, Edge, Brave on Windows / macOS / Linux / ChromeOS):** Uses **Web Serial API** (`navigator.serial`) by default for native OS serial drivers, with optional **WebUSB** (`navigator.usb`) fallback.
   * **Mobile (Chrome / Edge on Android 8+):** Automatically uses **WebUSB API** (`navigator.usb`) with built-in user-space drivers (`CDC-ACM`, `FTDI`, `Silicon Labs CP210x`, `QinHeng CH340/CH341/CH9102`, `Prolific PL2303`).
   * Works with any standard USB serial device without HotWire handshake restrictions.
-* **XIAO ESP32 UART Bridge Mode (`D6 / D7`, 3.3 V TTL, `v1.0.0+`):**
+* **XIAO ESP32 UART Bridge Mode (`D6 / D7`, 3.3 V TTL, `v1.1.0+`):**
   * Turns a **Seeed Studio XIAO ESP32-S3** (`D6 / GPIO 43` TX, `D7 / GPIO 44` RX) or **XIAO ESP32-C6** (`D6 / GPIO 16` TX, `D7 / GPIO 17` RX) into a dedicated hardware USB-to-UART bridge for probing external embedded targets.
-  * Automatically verifies the connected board's target firmware and version (`v1.0.0+`) via `hotwire-core` — if another HotWire firmware or outdated version is detected, the app disconnects cleanly and displays a one-click **Flash Firmware** prompt.
+  * Automatically verifies the connected board's target firmware and version (`v1.1.0+`) via `hotwire-core` - if another HotWire firmware or outdated version is detected, the app disconnects cleanly and displays a one-click **Flash Firmware** prompt.
   * Includes a **built-in Web Flasher** (`⚡ Flasher` in the top bar) with pre-compiled firmware binaries for both boards, plus software **Swap TX/RX (`D6 ↔ D7`)** and **Invert RX / TX** options in `⚙ Settings`.
   * **Firmware Sketches:**
     * [`firmware/HotWire_UART_XIAO_ESP32S3/HotWire_UART_XIAO_ESP32S3.ino`](firmware/HotWire_UART_XIAO_ESP32S3/HotWire_UART_XIAO_ESP32S3.ino)

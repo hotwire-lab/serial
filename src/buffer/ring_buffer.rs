@@ -39,10 +39,10 @@ impl RingBuffer {
     }
 
     /// Pushes a chunk into the bounded ring buffer.
-    /// Returns `true` if one or more older chunks were evicted to stay within bounds.
-    pub fn push(&mut self, data: Vec<u8>, timestamp_ms: u64, direction: ChunkDirection) -> bool {
+    /// Returns the number of older chunks evicted to stay within bounds.
+    pub fn push(&mut self, data: Vec<u8>, timestamp_ms: u64, direction: ChunkDirection) -> usize {
         if data.is_empty() {
-            return false;
+            return 0;
         }
         self.total_bytes += data.len();
         self.chunks.push_back(TerminalChunk {
@@ -51,13 +51,13 @@ impl RingBuffer {
             direction,
         });
 
-        let mut evicted = false;
+        let mut evicted = 0usize;
         while self.chunks.len() > self.max_chunks
             || (self.total_bytes > self.max_bytes && self.chunks.len() > 1)
         {
             if let Some(removed) = self.chunks.pop_front() {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.data.len());
-                evicted = true;
+                evicted += 1;
             }
         }
         evicted
