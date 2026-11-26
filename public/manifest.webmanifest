@@ -1,6 +1,6 @@
 {
-  "name": "HotWire USB Serial Terminal",
-  "short_name": "HotWire",
+  "name": "HotWire Serial Terminal - Web Serial & WebUSB",
+  "short_name": "HotWire Serial",
   "description": "Cross-platform WebSerial & WebUSB serial terminal PWA for desktop PCs and Android mobile devices.",
   "start_url": "./",
   "scope": "./",
@@ -8,7 +8,10 @@
   "orientation": "any",
   "background_color": "#0b0e12",
   "theme_color": "#0b0e12",
-  "categories": ["developer", "utilities"],
+  "categories": [
+    "developer",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "./icon.svg",
@@ -28,6 +31,8 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "./",
+  "lang": "en",
+  "dir": "ltr"
 }
-

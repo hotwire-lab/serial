@@ -1,8 +1,8 @@
-pub use hotwire_core::protocol::{
-    build_bootloader_frame, build_get_caps_frame, encode_frame, BoardIdentity,
-    TYPE_BOARD_CAPABILITIES as TYPE_BOARD_CAPS,
+pub use hotwire_core::protocol::{build_bootloader_frame, build_get_caps_frame, encode_frame};
+#[cfg(test)]
+use hotwire_core::protocol::{
+    BoardIdentity, FrameDemuxer, FrameRule, TYPE_BOARD_CAPABILITIES as TYPE_BOARD_CAPS,
 };
-use hotwire_core::protocol::{FrameDemuxer, FrameRule};
 use serde::Deserialize;
 
 pub const CMD_UART_CFG: u8 = 0x50;
@@ -58,22 +58,26 @@ pub struct BridgeCapabilities {
     pub rx_pin: String,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum BridgePacket {
     Capabilities(BoardIdentity, BridgeCapabilities),
     UartRx(Vec<u8>),
 }
 
+#[cfg(test)]
 pub struct BridgeDemuxer {
     inner: FrameDemuxer,
 }
 
+#[cfg(test)]
 impl Default for BridgeDemuxer {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(test)]
 impl BridgeDemuxer {
     pub fn new() -> Self {
         Self {
@@ -82,10 +86,6 @@ impl BridgeDemuxer {
                 FrameRule::new(TYPE_UART_RX, 0, 4096),
             ]),
         }
-    }
-
-    pub fn reset(&mut self) {
-        self.inner.reset();
     }
 
     pub fn feed<F>(&mut self, bytes: &[u8], mut on_packet: F)
@@ -136,6 +136,9 @@ mod tests {
             }
             _ => panic!("expected caps"),
         }
-        assert_eq!(packets[1], BridgePacket::UartRx(b"Hello UART!\r\n".to_vec()));
+        assert_eq!(
+            packets[1],
+            BridgePacket::UartRx(b"Hello UART!\r\n".to_vec())
+        );
     }
 }

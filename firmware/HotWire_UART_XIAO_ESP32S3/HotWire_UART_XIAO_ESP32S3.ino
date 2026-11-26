@@ -35,12 +35,13 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
+#include "hotwire_protocol.h"
 
 #ifndef CONFIG_IDF_TARGET_ESP32S3
   #error "This sketch targets Seeed Studio XIAO ESP32-S3."
 #endif
 
-#define HOTWIRE_FW_VERSION "1.1.0-uart"
+#define HOTWIRE_FW_VERSION "1.1.1-uart"
 #define HOTWIRE_BOARD_NAME "XIAO-ESP32-S3"
 
 static const int PIN_TX_DEFAULT = 43; // D6
@@ -116,7 +117,7 @@ static void send_frame(uint8_t type_id, const uint8_t* payload, uint16_t len) {
 static void send_capabilities() {
   const char* json =
     "{\"board\":\"" HOTWIRE_BOARD_NAME "\","
-    "\"firmware\":\"" HOTWIRE_FW_VERSION "\","
+    "\"firmware\":\"" HOTWIRE_FW_VERSION "\",\"schema\":2,\"tool\":\"serial\","
     "\"uart_bridge\":true,\"tx_pin\":\"D6\",\"rx_pin\":\"D7\",\"max_baud\":2000000}";
   send_frame(TYPE_BOARD_CAPS, (const uint8_t*)json, (uint16_t)strlen(json));
 }
@@ -190,7 +191,7 @@ static void handle_frame(uint8_t cmd, const uint8_t* payload, uint16_t len) {
       }
       break;
     case CMD_BOOTLOADER:
-      if (len >= 4 && payload[0] == 0xB0 && payload[1] == 0x07 && payload[2] == 0x10 && payload[3] == 0xAD) {
+      if (len >= 4 && hotwire_is_bootloader_magic(payload[0], payload[1], payload[2], payload[3])) {
         Serial1.end();
         vTaskDelay(pdMS_TO_TICKS(20));
         REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);

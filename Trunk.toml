@@ -8,5 +8,5 @@ ignore = ["dist", "target"]
 
 [serve]
 addresses = ["127.0.0.1"]
-port = 8082
+port = 8083
 open = false

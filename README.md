@@ -18,9 +18,9 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
   * **Desktop (Chrome, Edge, Brave on Windows / macOS / Linux / ChromeOS):** Uses **Web Serial API** (`navigator.serial`) by default for native OS serial drivers, with optional **WebUSB** (`navigator.usb`) fallback.
   * **Mobile (Chrome / Edge on Android 8+):** Automatically uses **WebUSB API** (`navigator.usb`) with built-in user-space drivers (`CDC-ACM`, `FTDI`, `Silicon Labs CP210x`, `QinHeng CH340/CH341/CH9102`, `Prolific PL2303`).
   * Works with any standard USB serial device without HotWire handshake restrictions.
-* **XIAO ESP32 UART Bridge Mode (`D6 / D7`, 3.3 V TTL, `v1.1.0+`):**
+* **XIAO ESP32 UART Bridge Mode (`D6 / D7`, 3.3 V TTL, `v1.1.1+`):**
   * Turns a **Seeed Studio XIAO ESP32-S3** (`D6 / GPIO 43` TX, `D7 / GPIO 44` RX) or **XIAO ESP32-C6** (`D6 / GPIO 16` TX, `D7 / GPIO 17` RX) into a dedicated hardware USB-to-UART bridge for probing external embedded targets.
-  * Automatically verifies the connected board's target firmware and version (`v1.1.0+`) via `hotwire-core` - if another HotWire firmware or outdated version is detected, the app disconnects cleanly and displays a one-click **Flash Firmware** prompt.
+  * Automatically verifies the connected board's target firmware and version (`v1.1.1+`) via `hotwire-core` - if another HotWire firmware or outdated version is detected, the app disconnects cleanly and displays a one-click **Flash Firmware** prompt.
   * Includes a **built-in Web Flasher** (`⚡ Flasher` in the top bar) with pre-compiled firmware binaries for both boards, plus software **Swap TX/RX (`D6 ↔ D7`)** and **Invert RX / TX** options in `⚙ Settings`.
   * **Firmware Sketches:**
     * [`firmware/HotWire_UART_XIAO_ESP32S3/HotWire_UART_XIAO_ESP32S3.ino`](firmware/HotWire_UART_XIAO_ESP32S3/HotWire_UART_XIAO_ESP32S3.ino)
@@ -30,7 +30,7 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
 
 ## Key Features
 
-* **Unified HotWire Top Bar & Tool Switcher:** Jump seamlessly between **Logic**, **Scope**, **SDR**, and **Serial** from the shared `hotwire-core` toolbar.
+* **Unified HotWire Top Bar & Tool Switcher:** Jump seamlessly between **Logic**, **Scope**, **SDR**, **Serial**, and **Gen** from the shared `hotwire-core` toolbar.
 * **Authorized Auto-Reconnect & Smart Defaults:** Reconnects previously granted USB devices via `getPorts()` / `getDevices()`, applies per-`VID:PID` DTR/RTS profiles (`DTR=ON` for native USB CDC-ACM, `DTR=OFF` for external UART bridges), and supports `100 ms` MCU reset pulses (`RST`) plus multi-port switching (`[P0 / P1]`).
 * **Incremental Ring-Buffer Viewport:** 10,000-chunk / 2 MB `RingBuffer` retains raw payloads and millisecond timestamps for instant, non-destructive switching between `ASCII`, `HEX`, `Timestamps`, and `Invisible Chars`. Incoming bursts append incrementally and coalesce DOM updates on `requestAnimationFrame`, with `Ctrl+Wheel` / `A−` / `A+` zoom (`9 px`–`24 px`), ANSI CSI stripping, log export (`.txt`), and Smart Auto-Scroll Lock (`↓ Resume`).
 * **Workflow Ergonomics:** Dedicated `Ctrl+C`, `ESC`, `TAB` keys, command history (`↑` / `↓`), customizable macro chips (right-click or edit in Settings), `CRLF`/`LF`/`CR`/`RAW` selector, Local Echo, and Screen Wake Lock while connected.
@@ -51,7 +51,7 @@ Built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](h
 rustup target add wasm32-unknown-unknown
 cargo clippy --all-targets -- -D warnings
 cargo test
-trunk serve          # local dev server (http://127.0.0.1:8082)
+trunk serve          # local dev server (http://127.0.0.1:8083)
 trunk build --release
 ```
 

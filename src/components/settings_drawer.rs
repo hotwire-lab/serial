@@ -6,16 +6,7 @@ use crate::storage::preferences::{HotWirePreferences, LineEnding, TerminalMode, 
 use crate::transport::serial::{SerialTransport, TransportSnapshot};
 
 fn uart_bridge_profiles() -> Vec<FirmwareProfile> {
-    vec![
-        FirmwareProfile::xiao_esp32s3(
-            "HotWire_UART_XIAO_ESP32S3.ino",
-            "3.3 V TTL USB-to-UART Bridge: D6 (GPIO43) TX, D7 (GPIO44) RX — live baud/framing, Swap TX/RX, Invert",
-        ),
-        FirmwareProfile::xiao_esp32c6(
-            "HotWire_UART_XIAO_ESP32C6.ino",
-            "3.3 V TTL USB-to-UART Bridge: D6 (GPIO16) TX, D7 (GPIO17) RX — live baud/framing, Swap TX/RX, Invert",
-        ),
-    ]
+    FirmwareProfile::standard_profiles(ToolId::SerialTerminal)
 }
 
 #[component]

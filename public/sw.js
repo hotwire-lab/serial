@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'hotwire-serial-';
-const CACHE_NAME = 'hotwire-serial-v8';
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'hotwire-serial-v9';
+const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png', './fonts/ibm-plex-sans-latin-400-normal.woff2', './fonts/ibm-plex-sans-latin-600-normal.woff2', './fonts/ibm-plex-mono-latin-400-normal.woff2', './fonts/ibm-plex-mono-latin-500-normal.woff2'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

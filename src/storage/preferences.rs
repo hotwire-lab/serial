@@ -162,9 +162,7 @@ impl Default for HotWirePreferences {
 const PREFS_KEY: &str = "hotwire_serial_wasm_prefs_v1";
 
 pub fn load_preferences() -> HotWirePreferences {
-    let raw = web_sys::window()
-        .and_then(|w| w.local_storage().ok().flatten())
-        .and_then(|s| s.get_item(PREFS_KEY).ok().flatten());
+    let raw = hotwire_core::web::local_storage_get(PREFS_KEY);
     if let Some(json) = raw {
         if let Ok(mut parsed) = serde_json::from_str::<HotWirePreferences>(&json) {
             parsed.font_size = parsed.font_size.clamp(9, 24);
@@ -175,10 +173,8 @@ pub fn load_preferences() -> HotWirePreferences {
 }
 
 pub fn save_preferences(prefs: &HotWirePreferences) {
-    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-        if let Ok(json) = serde_json::to_string(prefs) {
-            let _ = storage.set_item(PREFS_KEY, &json);
-        }
+    if let Ok(json) = serde_json::to_string(prefs) {
+        hotwire_core::web::local_storage_set(PREFS_KEY, &json);
     }
 }
 

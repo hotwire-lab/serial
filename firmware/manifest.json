@@ -1,0 +1,62 @@
+{
+  "tool": "serial-terminal",
+  "caps_schema": 2,
+  "sketches": [
+    {
+      "sketch": "firmware/HotWire_UART_XIAO_ESP32C6/HotWire_UART_XIAO_ESP32C6.ino",
+      "version": "1.1.1-uart-c6"
+    },
+    {
+      "sketch": "firmware/HotWire_UART_XIAO_ESP32S3/HotWire_UART_XIAO_ESP32S3.ino",
+      "version": "1.1.1-uart"
+    }
+  ],
+  "binaries": [
+    {
+      "file": "boot_app0.bin",
+      "bytes": 8192,
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+      "embedded_firmware": []
+    },
+    {
+      "file": "HotWire_UART_XIAO_ESP32C6.ino.bin",
+      "bytes": 264992,
+      "sha256": "8ebd408c92b9c52402e7a316cbdee36922c7b881375d4efe787944494b758c78",
+      "embedded_firmware": [
+        "1.1.1-uart-c6"
+      ]
+    },
+    {
+      "file": "HotWire_UART_XIAO_ESP32C6.ino.bootloader.bin",
+      "bytes": 20720,
+      "sha256": "02f53243e1ded001d79f109e938846d72bd85a91bee7a3513e4094d7c090975c",
+      "embedded_firmware": []
+    },
+    {
+      "file": "HotWire_UART_XIAO_ESP32C6.ino.partitions.bin",
+      "bytes": 3072,
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+      "embedded_firmware": []
+    },
+    {
+      "file": "HotWire_UART_XIAO_ESP32S3.ino.bin",
+      "bytes": 283184,
+      "sha256": "e0e46dc833d5b62e37e540f5b5ab1f67a98ecf9d7a03076e8aba6548430dde9e",
+      "embedded_firmware": [
+        "1.1.1-uart"
+      ]
+    },
+    {
+      "file": "HotWire_UART_XIAO_ESP32S3.ino.bootloader.bin",
+      "bytes": 19968,
+      "sha256": "73bd425e380c709f6abd83aa987cb51c042a9aa8de44a37a9edb22d53bca08dd",
+      "embedded_firmware": []
+    },
+    {
+      "file": "HotWire_UART_XIAO_ESP32S3.ino.partitions.bin",
+      "bytes": 3072,
+      "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+      "embedded_firmware": []
+    }
+  ]
+}

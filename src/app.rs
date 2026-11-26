@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 
-use hotwire_core::protocol::{BoardIdentity, FirmwareMismatch, ToolId};
-use hotwire_core::transport::HandshakeGuard;
+use hotwire_core::protocol::{FrameRule, ToolId};
 use hotwire_core::ui::{FirmwareMismatchModal, HotWireTheme};
+use hotwire_core::web::{download_text_file, now_ms};
+use hotwire_core::{use_hotwire_session, SessionConfig};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -15,21 +16,29 @@ use crate::components::terminal_viewport::TerminalViewport;
 use crate::components::top_toolbar::TopToolbar;
 use crate::protocol::{
     build_get_caps_frame, build_uart_cfg_frame, build_uart_tx_frames, BridgeCapabilities,
-    BridgeDemuxer, BridgePacket,
+    TYPE_UART_RX,
 };
-use crate::storage::preferences::{
-    load_preferences, save_preferences, LineEnding, TerminalMode,
-};
-use crate::transport::serial::{
-    create_terminal_transport, to_core_serial_config, TransportKind, TransportSnapshot,
-};
-
-fn now_ms() -> u64 {
-    js_sys::Date::now() as u64
-}
+use crate::storage::preferences::{load_preferences, save_preferences, LineEnding, TerminalMode};
+use crate::transport::serial::{create_terminal_transport, to_core_serial_config, TransportKind};
 
 /// Splits bytes into a complete UTF-8 prefix and an incomplete trailing
 /// sequence that should be carried into the next USB chunk.
+/// Maximum number of formatted characters rendered into the DOM. The full
+/// ring buffer remains available for export, but rendering a multi-megabyte
+/// string at 20 fps is unnecessarily expensive on mobile devices.
+const MAX_RENDER_CHARS: usize = 256 * 1024;
+
+fn tail_chars(text: &str, max_chars: usize) -> &str {
+    if text.len() <= max_chars {
+        return text;
+    }
+    let mut start = text.len() - max_chars;
+    while start < text.len() && !text.is_char_boundary(start) {
+        start += 1;
+    }
+    &text[start..]
+}
+
 fn split_utf8_tail(data: &[u8]) -> (usize, Vec<u8>) {
     match std::str::from_utf8(data) {
         Ok(_) => (data.len(), Vec::new()),
@@ -41,40 +50,6 @@ fn split_utf8_tail(data: &[u8]) -> (usize, Vec<u8>) {
     }
 }
 
-fn download_text_file(filename: &str, content: &str) {
-    let Some(win) = web_sys::window() else { return };
-    let Some(doc) = win.document() else { return };
-    let arr = js_sys::Array::new();
-    arr.push(&content.into());
-    let bag = web_sys::BlobPropertyBag::new();
-    bag.set_type("text/plain;charset=utf-8");
-    let Ok(blob) = web_sys::Blob::new_with_str_sequence_and_options(&arr, &bag) else {
-        return;
-    };
-    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
-        return;
-    };
-    if let Ok(el) = doc.create_element("a") {
-        if let Ok(link) = el.dyn_into::<web_sys::HtmlAnchorElement>() {
-            link.set_href(&url);
-            link.set_download(filename);
-            if let Some(body) = doc.body() {
-                let _ = body.append_child(&link);
-                link.click();
-                link.remove();
-            }
-        }
-    }
-    let url_clone = url.clone();
-    let cb = Closure::once_into_js(move || {
-        let _ = web_sys::Url::revoke_object_url(&url_clone);
-    });
-    let _ = win.set_timeout_with_callback_and_timeout_and_arguments_0(
-        cb.as_ref().unchecked_ref(),
-        1000,
-    );
-}
-
 #[component]
 pub fn App() -> impl IntoView {
     let initial_prefs = load_preferences();
@@ -82,11 +57,6 @@ pub fn App() -> impl IntoView {
         &initial_prefs.serial,
         initial_prefs.auto_connect,
     ));
-    let transport = RwSignal::new(serial_transport.with_value(|t| t.snapshot()));
-    let identity = RwSignal::new(None::<BoardIdentity>);
-    let mismatch = RwSignal::new(None::<FirmwareMismatch>);
-    let flasher_mismatch = RwSignal::new(None::<FirmwareMismatch>);
-    let handshake_guard = StoredValue::new_local(HandshakeGuard::new(ToolId::SerialTerminal));
     let prefs = RwSignal::new(initial_prefs);
 
     let ring_buffer = StoredValue::new_local(RingBuffer::default());
@@ -104,8 +74,6 @@ pub fn App() -> impl IntoView {
     let settings_tab = RwSignal::new("settings".to_string());
     let editing_macro_idx = RwSignal::new(None::<usize>);
     let bridge_caps = RwSignal::new(None::<BridgeCapabilities>);
-    let bridge_demuxer = StoredValue::new_local(BridgeDemuxer::new());
-    let was_usb_connected = StoredValue::new_local(false);
 
     let build_bridge_init_cmds = |p: &crate::storage::preferences::HotWirePreferences| -> Vec<u8> {
         if p.mode == TerminalMode::XiaoUartBridge {
@@ -162,7 +130,8 @@ pub fn App() -> impl IntoView {
             rebuild_cache();
         }
         ring_buffer.with_value(|rb| total_bytes.set(rb.total_bytes()));
-        cached_text.with_value(|txt| rendered_text.set(txt.clone()));
+        cached_text
+            .with_value(|txt| rendered_text.set(tail_chars(txt, MAX_RENDER_CHARS).to_string()));
     };
 
     let schedule_flush = move || {
@@ -277,92 +246,48 @@ pub fn App() -> impl IntoView {
         schedule_flush();
     };
 
-    serial_transport.with_value(|st| {
-        let initial_p = prefs.get_untracked();
-        st.set_init_commands(build_bridge_init_cmds(&initial_p));
-        st.init(
-            move |snap: TransportSnapshot| {
-                let now_connected = snap.status.is_active();
-                let is_usb = snap.status.is_usb_connected();
-                let dev_name = snap.device_name.clone();
-                let prev_usb = was_usb_connected.get_value();
-                was_usb_connected.set_value(is_usb);
-                transport.set(snap.clone());
+    let initial_p = prefs.get_untracked();
+    let mut session_config = SessionConfig::new(
+        ToolId::SerialTerminal,
+        vec![FrameRule::new(TYPE_UART_RX, 0, 4096)],
+    );
+    session_config.handshake_enabled = initial_p.mode == TerminalMode::XiaoUartBridge;
+    session_config.demux_enabled = initial_p.mode == TerminalMode::XiaoUartBridge;
 
-                if !now_connected {
-                    handshake_guard.update_value(|g| g.cancel());
-                    identity.set(None);
-                    bridge_caps.set(None);
-                    bridge_demuxer.update_value(|d| d.reset());
-                    utf8_carry.set_value(Vec::new());
-                } else if !prev_usb && is_usb {
-                    let p = prefs.get_untracked();
-                    if p.mode == TerminalMode::XiaoUartBridge {
-                        mismatch.set(None);
-                        flasher_mismatch.set(None);
-                        bridge_demuxer.update_value(|d| d.reset());
-                        handshake_guard.update_value(|g| {
-                            g.arm_timeout(dev_name, 5000, move |mm| {
-                                if prefs.get_untracked().mode != TerminalMode::XiaoUartBridge {
-                                    return;
-                                }
-                                mismatch.set(Some(mm.clone()));
-                                flasher_mismatch.set(Some(mm));
-                                serial_transport.with_value(|t| t.disconnect());
-                            });
-                        });
-                    } else {
-                        handshake_guard.update_value(|g| g.cancel());
-                        mismatch.set(None);
-                        flasher_mismatch.set(None);
-                        identity.set(None);
-                        bridge_caps.set(None);
-                    }
-                } else if !is_usb {
-                    handshake_guard.update_value(|g| g.cancel());
-                    mismatch.set(None);
-                    flasher_mismatch.set(None);
-                }
-            },
-            move |bytes: &[u8]| {
-                let p = prefs.get_untracked();
-                let snap = transport.get_untracked();
-                if p.mode == TerminalMode::XiaoUartBridge && snap.transport != TransportKind::Demo {
-                    bridge_demuxer.update_value(|d| {
-                        d.feed(bytes, |pkt| match pkt {
-                            BridgePacket::Capabilities(id, caps) => {
-                                serial_transport.with_value(|t| t.notify_handshake_ok());
-                                let mut verdict = Ok(());
-                                handshake_guard.update_value(|g| {
-                                    verdict = g.verify(&id);
-                                });
-                                if let Err(mm) = verdict {
-                                    mismatch.set(Some(mm.clone()));
-                                    flasher_mismatch.set(Some(mm));
-                                    serial_transport.with_value(|t| t.disconnect());
-                                    return;
-                                }
-                                mismatch.set(None);
-                                flasher_mismatch.set(None);
-                                if settings_tab.get_untracked() == "flasher" {
-                                    settings_open.set(false);
-                                }
-                                identity.set(Some(id));
-                                bridge_caps.set(Some(caps));
-                            }
-                            BridgePacket::UartRx(data) => {
-                                push_chunk(&data, ChunkDirection::Rx);
-                            }
-                        });
-                    });
-                } else {
-                    push_chunk(bytes, ChunkDirection::Rx);
-                }
-            },
-        );
-        let p = prefs.get_untracked();
-        st.set_auto_connect(p.auto_connect);
-    });
+    let session = use_hotwire_session(
+        serial_transport.with_value(|t| t.clone()),
+        session_config,
+        move |id, _is_usb| {
+            if let Ok(caps) = serde_json::from_value::<BridgeCapabilities>(id.raw.clone()) {
+                bridge_caps.set(Some(caps));
+            }
+            if settings_tab.get_untracked() == "flasher" {
+                settings_open.set(false);
+            }
+        },
+        move || {
+            bridge_caps.set(None);
+            utf8_carry.set_value(Vec::new());
+        },
+        move |frame_type, payload| {
+            let p = prefs.get_untracked();
+            if p.mode == TerminalMode::XiaoUartBridge && frame_type == TYPE_UART_RX {
+                push_chunk(payload, ChunkDirection::Rx);
+            }
+        },
+        move |text| {
+            let p = prefs.get_untracked();
+            if p.mode == TerminalMode::DirectUsb {
+                push_chunk(text, ChunkDirection::Rx);
+            }
+        },
+    );
+    let transport = session.transport;
+    let identity = session.identity;
+    let mismatch = session.mismatch;
+    let flasher_mismatch = session.flasher_mismatch;
+    let session_store = StoredValue::new_local(session);
+    serial_transport.with_value(|t| t.set_auto_connect(initial_p.auto_connect));
 
     let connected = Signal::derive(move || transport.get().status.is_active());
 
@@ -412,34 +337,24 @@ pub fn App() -> impl IntoView {
         let p = prefs.get_untracked();
         let init_bytes = build_bridge_init_cmds(&p);
         serial_transport.with_value(|t| t.set_init_commands(init_bytes.clone()));
-        bridge_demuxer.update_value(|d| d.reset());
-        if mode == TerminalMode::DirectUsb {
-            handshake_guard.update_value(|g| g.cancel());
-            mismatch.set(None);
-            flasher_mismatch.set(None);
-            identity.set(None);
+        session_store.with_value(|session| {
+            session.clear_identity();
+            session.set_demux_enabled(mode == TerminalMode::XiaoUartBridge);
+            session.set_handshake_enabled(mode == TerminalMode::XiaoUartBridge);
+            session.cancel_handshake();
             bridge_caps.set(None);
-            serial_transport
-                .with_value(|t| t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect)));
-        } else {
-            let snap = transport.get_untracked();
-            if snap.status.is_usb_connected() {
-                let dev_name = snap.device_name.clone();
-                mismatch.set(None);
-                flasher_mismatch.set(None);
-                handshake_guard.update_value(|g| {
-                    g.arm_timeout(dev_name, 5000, move |mm| {
-                        if prefs.get_untracked().mode != TerminalMode::XiaoUartBridge {
-                            return;
-                        }
-                        mismatch.set(Some(mm.clone()));
-                        flasher_mismatch.set(Some(mm));
-                        serial_transport.with_value(|t| t.disconnect());
-                    });
+            if mode == TerminalMode::DirectUsb {
+                serial_transport.with_value(|t| {
+                    t.reconfigure(to_core_serial_config(&p.serial, p.auto_connect));
                 });
-                serial_transport.with_value(|t| t.send_bytes(&init_bytes));
+            } else {
+                let snap = transport.get_untracked();
+                if snap.status.is_usb_connected() {
+                    session.arm_handshake(snap.device_name.clone());
+                    serial_transport.with_value(|t| t.send_bytes(&init_bytes));
+                }
             }
-        }
+        });
     });
 
     let on_toggle_auto_connect = Callback::new(move |_| {
@@ -525,7 +440,7 @@ pub fn App() -> impl IntoView {
 
     let on_save_log = Callback::new(move |_| {
         let txt = rendered_text.get_untracked();
-        download_text_file("hotwire-serial-log.txt", &txt);
+        download_text_file("hotwire-serial-log.txt", &txt, "text/plain;charset=utf-8");
     });
 
     let send_tx = move |bytes: &[u8]| {
@@ -618,8 +533,8 @@ pub fn App() -> impl IntoView {
             send_bridge_uart_cfg();
         });
 
-    let on_save_macro =
-        Callback::new(move |(idx, label, payload, le): (usize, String, String, LineEnding)| {
+    let on_save_macro = Callback::new(
+        move |(idx, label, payload, le): (usize, String, String, LineEnding)| {
             prefs.update(|p| {
                 if let Some(m) = p.macros.get_mut(idx) {
                     if !label.trim().is_empty() {
@@ -630,11 +545,12 @@ pub fn App() -> impl IntoView {
                     save_preferences(p);
                 }
             });
-        });
+        },
+    );
 
     view! {
         <HotWireTheme />
-        <div class="app-shell">
+        <div class="app-shell hw-app">
             <TopToolbar
                 transport=transport
                 identity=identity
@@ -714,7 +630,7 @@ pub fn App() -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use super::split_utf8_tail;
+    use super::{split_utf8_tail, tail_chars};
 
     #[test]
     fn carries_split_utf8_sequences() {
@@ -726,5 +642,14 @@ mod tests {
         let (valid, tail) = split_utf8_tail(bytes);
         assert_eq!(valid, bytes.len());
         assert!(tail.is_empty());
+    }
+
+    #[test]
+    fn tail_chars_never_splits_utf8() {
+        let text = format!("{}ä", "x".repeat(32));
+        let tail = tail_chars(&text, 4);
+        assert!(tail.ends_with('ä'));
+        assert!(text.ends_with(tail));
+        assert_eq!(tail_chars("short", 64), "short");
     }
 }

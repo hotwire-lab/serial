@@ -54,6 +54,7 @@ pub fn TopToolbar(
             on_start_demo=on_start_demo
             flasher_open=flasher_open
             on_toggle_flasher=on_toggle_flasher
+            app_version=env!("CARGO_PKG_VERSION")
         >
             <select
                 class="ctrl-select hw-desktop-only"

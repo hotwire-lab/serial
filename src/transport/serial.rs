@@ -22,10 +22,8 @@ pub fn to_core_serial_config(cfg: &SerialPortConfig, auto_connect: bool) -> Seri
 }
 
 pub fn create_terminal_transport(cfg: &SerialPortConfig, auto_connect: bool) -> SerialTransport {
-    let transport = SerialTransport::with_demo(
-        to_core_serial_config(cfg, auto_connect),
-        DemoShell::new(),
-    );
+    let transport =
+        SerialTransport::with_demo(to_core_serial_config(cfg, auto_connect), DemoShell::new());
     // Direct USB terminal mode must not transmit binary handshake frames automatically.
     transport.set_init_commands(Vec::new());
     transport.set_bootloader_command(build_bootloader_frame());
