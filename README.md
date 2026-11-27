@@ -32,7 +32,7 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
 
 * **Unified HotWire Top Bar & Tool Switcher:** Jump seamlessly between **Logic**, **Scope**, **SDR**, **Serial**, and **Gen** from the shared `hotwire-core` toolbar.
 * **Authorized Auto-Reconnect & Smart Defaults:** Reconnects previously granted USB devices via `getPorts()` / `getDevices()`, applies per-`VID:PID` DTR/RTS profiles (`DTR=ON` for native USB CDC-ACM, `DTR=OFF` for external UART bridges), and supports `100 ms` MCU reset pulses (`RST`) plus multi-port switching (`[P0 / P1]`).
-* **Incremental Ring-Buffer Viewport:** 10,000-chunk / 2 MB `RingBuffer` retains raw payloads and millisecond timestamps for instant, non-destructive switching between `ASCII`, `HEX`, `Timestamps`, and `Invisible Chars`. Incoming bursts append incrementally and coalesce DOM updates on `requestAnimationFrame`, with `Ctrl+Wheel` / `A−` / `A+` zoom (`9 px`–`24 px`), ANSI CSI stripping, log export (`.txt`), and Smart Auto-Scroll Lock (`↓ Resume`).
+* **Incremental Ring-Buffer Viewport:** 10,000-chunk / 2 MB `RingBuffer` retains raw payloads and millisecond timestamps for instant, non-destructive switching between `ASCII`, `HEX`, `Timestamps`, and `Invisible Chars`. Incoming bursts append incrementally and coalesce DOM updates at ~20 fps (50 ms timer), rendering only the newest 256 KB while keeping the full buffer for export. Includes `Ctrl+Wheel` / `A−` / `A+` zoom (`9 px`–`24 px`), ANSI CSI stripping, log export (`.txt`), and Smart Auto-Scroll Lock (`↓ Resume`).
 * **Workflow Ergonomics:** Dedicated `Ctrl+C`, `ESC`, `TAB` keys, command history (`↑` / `↓`), customizable macro chips (right-click or edit in Settings), `CRLF`/`LF`/`CR`/`RAW` selector, Local Echo, and Screen Wake Lock while connected.
 
 ## HotWire Ecosystem
@@ -45,7 +45,7 @@ A zero-install, offline-capable Progressive Web App (PWA) USB Serial Terminal bu
 
 ## Development
 
-Built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](https://trunkrs.dev/) + `hotwire-core`).
+Built with **Rust + WebAssembly** ([Leptos](https://leptos.dev/) CSR + [Trunk](https://trunkrs.dev/) + `hotwire-core v0.6.0`).
 
 ```bash
 rustup target add wasm32-unknown-unknown
